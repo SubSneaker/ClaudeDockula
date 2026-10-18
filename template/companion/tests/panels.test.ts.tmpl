@@ -1,0 +1,48 @@
+import type { On } from 'claude-code'
+import { describe, expect, test } from 'claude-code/testing'
+
+import { cellWidth, fitLine, target, text } from '../hooks/kit/spans'
+import { PANELS } from '../hooks/panels'
+
+// The dock is another plugin, so a test loads a stub of it: the `$.dockula` noun with empty answers, and a
+// session.start hook that asks for the panels the way the dock does and hands them to the test.
+const stubDock = {
+  name: 'claudedockula',
+  register(on: On) {
+    on('engine.create', async (_$, e, next) => ({
+      ...(await next(e)),
+      dockula: {
+        panels: async () => [],
+        draw: async () => null,
+        summary: async () => '–',
+        input: async () => ({ handled: false }),
+        changed: async () => ({ isQueued: false }),
+      },
+    }))
+    on('session.start', { isInteractive: true }, async ($, e, next) => {
+      const started = await next(e)
+      await $.prompt.fill({ text: JSON.stringify(await $.dockula.panels()) })
+
+      return started
+    })
+  },
+}
+
+describe('my panels', () => {
+  test('the span kit: emoji take two cells, and a line is cut to the card with …', () => {
+    expect(cellWidth('🚀 go')).toBe(5)
+    expect(fitLine([text('abc'), target('d', 'defgh')], 6)).toEqual([text('abc'), { text: 'de…', key: 'd' }])
+  })
+
+  test('the dock is told every panel this plugin lists', { plugins: [stubDock] }, async ($, on) => {
+    const told: string[] = []
+    on('session.start', ($, e) => ({ cwd: e.cwd }))
+    on('prompt.fill', ($, e) => {
+      told.push(e.text)
+
+      return { isFilled: true }
+    })
+    await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+    expect(told).toEqual([JSON.stringify(PANELS)])
+  })
+})

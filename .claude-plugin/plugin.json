@@ -1,0 +1,8 @@
+{
+  "name": "claudedockula",
+  "displayName": "ClaudeDockula",
+  "version": "0.1.0",
+  "description": "Live panel tabs above the prompt that open docks of panels on the right or at the bottom. Built-in panels: branch, checks, activity and Jira; add your own.",
+  "author": { "name": "SubSneaker" },
+  "types": "./types/index.d.ts"
+}

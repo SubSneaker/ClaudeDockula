@@ -1,0 +1,96 @@
+import type { EngineInterface } from 'claude-code'
+
+// Pure helpers for drawing a panel as rows of spans: what `dockula.draw` answers. No `$` here.
+
+type Dock = EngineInterface['dockula']
+export type PanelInfo = Awaited<ReturnType<Dock['panels']>>[number]
+export type Line = NonNullable<Awaited<ReturnType<Dock['draw']>>>[number]
+export type Span = Line[number]
+export type Look = Omit<Span, 'text' | 'key' | 'drag' | 'drop'>
+export type PanelEvent = Parameters<Dock['input']>[0]['event']
+
+export const TONE = { pass: 'success', fail: 'error', run: 'warning' } as const
+
+function pointCells(point: number): number {
+  const isWide =
+    (point >= 0x1100 && point <= 0x115f) ||
+    (point >= 0x2e80 && point <= 0xa4cf) ||
+    (point >= 0xac00 && point <= 0xd7a3) ||
+    (point >= 0xf900 && point <= 0xfaff) ||
+    (point >= 0xfe30 && point <= 0xfe4f) ||
+    (point >= 0xff00 && point <= 0xff60) ||
+    (point >= 0xffe0 && point <= 0xffe6) ||
+    (point >= 0x1f300 && point <= 0x1faff) ||
+    (point >= 0x20000 && point <= 0x3fffd)
+
+  return isWide ? 2 : 1
+}
+
+/** How many terminal cells `text` takes: emoji and CJK count two. */
+export function cellWidth(text: string): number {
+  let cells = 0
+  for (const char of text) {
+    const point = char.codePointAt(0) ?? 0
+    if (point === 0xfe0f || point === 0x200d) continue
+    cells += pointCells(point)
+  }
+
+  return cells
+}
+
+/** Plain text. */
+export function text(value: string, look: Look = {}): Span {
+  return { text: value, ...look }
+}
+
+/** A span the person can click, right-click or focus for keys; `key` comes back on the event. */
+export function target(key: string, value: string, look: Look = {}): Span {
+  return { text: value, key, ...look }
+}
+
+/** A span the person can pick up and drag. */
+export function draggable(key: string, value: string, look: Look = {}): Span {
+  return { text: value, key, drag: true, ...look }
+}
+
+/** A span that takes drops. */
+export function dropZone(key: string, value: string, look: Look = {}): Span {
+  return { text: value, key, drop: true, ...look }
+}
+
+/** A bold group title. */
+export function heading(title: string, detail?: string): Line {
+  return detail ? [text(title, { weight: 'semibold' }), text(`  ${detail}`, { dim: true })] : [text(title, { weight: 'semibold' })]
+}
+
+/** One dim line for empty, loading and error states. */
+export function note(value: string): Line {
+  return [text(value, { dim: true })]
+}
+
+/**
+ * A line cut to `columns` cells, the last span that does not fit ending in `…`.
+ * @example
+ * // ([text('abc'), text('defgh')], 6) → [text('abc'), text('de…')]
+ */
+export function fitLine(line: Line, columns: number): Line {
+  const fitted: Span[] = []
+  let used = 0
+  for (const span of line) {
+    const width = cellWidth(span.text)
+    if (used + width <= columns) {
+      fitted.push(span)
+      used += width
+      continue
+    }
+    let kept = ''
+    for (const char of span.text) {
+      if (cellWidth(kept + char) + used > columns - 1) break
+      kept += char
+    }
+    if (columns - used >= 1) fitted.push({ ...span, text: `${kept}…` })
+    break
+  }
+
+  return fitted
+}

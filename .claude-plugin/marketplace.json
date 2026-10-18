@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dockula",
+  "owner": { "name": "SubSneaker" },
+  "description": "ClaudeDockula: a dock of live panels for Claude Code.",
+  "plugins": [
+    {
+      "name": "claudedockula",
+      "source": "./",
+      "description": "Live panel tabs above the prompt that open docks of panels: branch, checks, activity, Jira, and panels you add.",
+      "category": "productivity",
+      "tags": ["dock", "panels", "jira", "git"]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+import type { Register } from 'claude-code'
+
+import { registerPanels } from './panels'
+
+export const register: Register = on => {
+  registerPanels(on)
+  // A reload of this plugin: the dock reads the panels again and redraws them.
+  on('session.start', { isInteractive: true }, async ($, e, next) => {
+    const started = await next(e)
+    void $.dockula.changed().catch(() => undefined)
+
+    return started
+  })
+}

@@ -1,0 +1,15 @@
+import type { On } from 'claude-code'
+
+import type { PanelInfo } from '../kit/spans'
+
+/** Every panel of this plugin, in the order ➕ added them. See PANEL_GUIDE.md, "Your own panels". */
+export const PANELS: PanelInfo[] = []
+
+/** Lists the panels to the dock, then registers each panel's hooks, called by name. */
+export function registerPanels(on: On): void {
+  on('dockula.panels', async ($, e, next) => {
+    const below = await next(e)
+
+    return 'value' in below ? { value: [...(below.value ?? []), ...PANELS] } : below
+  })
+}
