@@ -7,9 +7,9 @@
     {
       "name": "claudedockula",
       "source": "./",
-      "description": "Live panel tabs above the prompt that open docks of panels: branch, checks, activity, Jira, and panels you add.",
+      "description": "Live panel tabs above the prompt that open docks of panels on the right or at the bottom. Built-in panels: Branch, Checks, Activity, Jira, GitHub and Slacker (opt-in); add your own.",
       "category": "productivity",
-      "tags": ["dock", "panels", "jira", "git"]
+      "tags": ["dock", "panels", "jira", "git", "github", "slack"]
     }
   ]
 }

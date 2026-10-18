@@ -581,3 +581,9 @@ panel's import, its `PANELS` entry and its `register<Pascal>Hooks(on)` call from
 `readBandTab`) from `hooks/dock/DockPane.tsx`.
 Remove its block and its `'<id>'` key from `types/index.d.ts`, and its test file. Then run the
 checks. The stored layout forgets the id on its own.
+
+## Releasing
+
+- Bump `version` in `.claude-plugin/plugin.json` on every release. Users only get an update when it changes.
+- When a panel changes, bump its `revision` and set `whatsNew`. The dock shows that notice after an update.
+- Run `claude plugin validate --strict` before pushing.

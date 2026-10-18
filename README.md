@@ -1,8 +1,6 @@
 # ClaudeDockula
 
-A Claude Code plugin that puts a band of emoji tabs above the prompt and opens docks of live panel cards, either as right-side panes or as one bottom dock above the prompt. Built-in panels: [Branch](docs/panels/branch.md), [Checks](docs/panels/checks.md), [Activity](docs/panels/activity.md) and [Jira](docs/panels/jira.md), plus [Slacker](docs/panels/slacker.md) (your Slack @s, DMs and thread replies) and [GitHub](docs/panels/github.md) (your pull requests and reviews), which you add from ⚙ Manage. Each link is that panel's user guide. Each dock can have several views (tabs), panels lay out as Column or Row, and the bottom dock is drag-resizable with a scrollbar. The `/dock right|bottom|add|manage` command controls docks.
-
-This README is for developers: the owner and teammates who develop or try the plugin.
+A Claude Code plugin that puts a band of emoji tabs above the prompt and opens docks of live panel cards, either as right-side panes or as one bottom dock above the prompt. Built-in panels: [Branch](docs/panels/branch.md), [Checks](docs/panels/checks.md), [Activity](docs/panels/activity.md), [Jira](docs/panels/jira.md), [GitHub](docs/panels/github.md) (your pull requests and reviews) and [Slacker](docs/panels/slacker.md) (your Slack @s, DMs and thread replies). Slacker is opt-in: add it from ⚙ Manage. Each link is that panel's user guide. Each dock can have several views (tabs), panels lay out as Column or Row, and the bottom dock is drag-resizable with a scrollbar. The `/dock right|bottom|add|manage` command controls docks.
 
 ClaudeDockula is a "mod", built on Claude Code's early-access plugin hooks API, which may change between releases without notice. Docked panes need the fullscreen TUI (`"tui": "fullscreen"`).
 
@@ -11,9 +9,42 @@ ClaudeDockula is a "mod", built on Claude Code's early-access plugin hooks API, 
 - Version: lives only in `.claude-plugin/plugin.json`
 - Contract for writing panels: `PANEL_GUIDE.md`
 
+## Install
+
+The repo must be reachable by you. While it is private, only people invited to it can install.
+
+Inside a Claude Code session (v2.1.275 or later):
+
+```
+/plugin install claudedockula --marketplace SubSneaker/ClaudeDockula
+```
+
+Or in your shell, in two steps:
+
+```
+claude plugin marketplace add SubSneaker/ClaudeDockula
+claude plugin install claudedockula@dockula
+```
+
+From the shell, one command also works on Claude Code v2.1.292 or later:
+
+```
+claude plugin install claudedockula --marketplace SubSneaker/ClaudeDockula
+```
+
+## Update
+
+```
+claude plugin update claudedockula@dockula
+```
+
+Then restart Claude Code or run `/reload-plugins`.
+
+Auto-update is off by default for this marketplace. To turn it on, see [Turn on auto-update](https://code.claude.com/docs/en/plugins/host-marketplace#turn-on-auto-update).
+
 ## Develop
 
-Load the repo as a dev copy. Either start Claude Code with:
+For development only. Load the repo as a dev copy. Either start Claude Code with:
 
 ```
 claude --plugin-dir /path/to/ClaudeDockula
@@ -25,7 +56,7 @@ A dev copy overrides an installed copy and hot-reloads when you save files. The 
 
 ## Check
 
-Before sharing:
+Before a release:
 
 ```
 npx -y -p typescript@5 tsc -p .
@@ -36,38 +67,6 @@ claude plugin test .
 - Any TypeScript 5+ `tsc` works; `npx -y -p typescript@5 tsc` is the one the panel prompts name. `tsconfig.json` extends `./.claude-plugin/types/tsconfig.json`, which the engine generates (gitignored) the first time it loads the plugin from a folder you own. Load the plugin once (see Develop) before running `tsc`.
 - `claude plugin validate .` also validates the marketplace file. Add `--strict` to treat warnings as errors.
 - `claude plugin test .` runs every `*.test.ts` and `*.test.tsx` file in the folder.
-
-## Share and update
-
-There is no remote yet. The owner creates the GitHub repo and pushes it; below, `<owner>/<repo>` is a placeholder.
-
-Release (dev only):
-
-1. Bump `version` in `.claude-plugin/plugin.json`.
-2. Commit it.
-3. Tag the release. It creates `claudedockula--v<version>` and needs a clean working tree:
-
-```
-claude plugin tag --push
-```
-
-Use `--dry-run` first to see what it would do. `--push` pushes the tag to `origin` (change with `--remote <name>`).
-
-Teammates install once (a local path works instead of `<owner>/<repo>`):
-
-```
-claude plugin marketplace add <owner>/<repo>
-claude plugin install claudedockula@dockula
-```
-
-To update:
-
-```
-claude plugin marketplace update dockula
-claude plugin update claudedockula@dockula
-```
-
-Then restart Claude Code or run `/reload-plugins`.
 
 ## Settings
 
