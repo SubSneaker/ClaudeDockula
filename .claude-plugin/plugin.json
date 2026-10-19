@@ -6,6 +6,7 @@
   "author": { "name": "SubSneaker" },
   "homepage": "https://github.com/SubSneaker/ClaudeDockula",
   "repository": "https://github.com/SubSneaker/ClaudeDockula",
+  "license": "MIT",
   "keywords": ["dock", "panels", "git", "jira", "github", "gitlab", "bitbucket", "slack"],
   "types": "./types/index.d.ts"
 }

@@ -118,3 +118,7 @@ What the plugin runs or writes by itself:
 - GitGud writes only its own Markdown files and review logs, under `claudedockula/gitgud/` in your Claude folder (files from the GitHub panel stay in `claudedockula/github/` and still open). A background review copies the PR's committed files into a temporary folder (`git archive`, `tar`, removed after) and runs `claude -p` there with none of your settings, plugins or MCP servers and read-only tools. Of your allow rules it borrows only `WebFetch(domain:…)` ones (your deny rules all apply); only you answer its other permission asks, in the card.
 
 Everything else it only puts in the prompt box for you to send: "New branch" fills `! git switch -c …`, "Check out" fills `! gh pr checkout …` (or `! glab mr checkout …`, or a `git fetch` and `git switch` for Bitbucket), Sign in fills `! gh auth login` or `! glab auth login`, the Bitbucket keychain command is only copied for you to run, actions that change something fill a prompt. Atlassian and Slack MCP calls may need allow rules in `/permissions` under auto mode; Slacker's 🔓 Allow Slack button puts a ready request for them in the prompt box.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
