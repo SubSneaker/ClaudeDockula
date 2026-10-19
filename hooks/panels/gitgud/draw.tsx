@@ -1,6 +1,7 @@
 import type { Elements, RenderSurface, ThemeKey } from 'claude-code'
 
 import type { GgHostState, GhDocKind, GhOverlap, GhReviewAsk, GhReviewJob, GhReviewModel, GhView, GitgudState } from '../../../types'
+import { SETTINGS_LABEL_CELLS, choiceButton, drawChoiceColumn, drawChoiceRow, drawSettingRow, radioLabel } from '../../dock/settingsView'
 import { TONE, cellWidth, drawActions, drawHeading, drawMore, drawNote, fitEnd, fitStart, padCells, splitPath, type DockElements } from '../../dock/ui'
 import { KEY, WORK_ACTIONS, actKey, askKey, encodeItemId, encodeRepoName, type GhAction } from './model'
 import { repoKeyOfRepo } from './ids'
@@ -36,7 +37,6 @@ type Ui = Elements[RenderSurface]
 
 const MAX_SHOWN = 5
 const MAX_FILES_SHOWN = 5
-const SETTINGS_LABEL_CELLS = 17
 const POLL_CHOICES: ReadonlyArray<{ seconds: number; label: string }> = [
   { seconds: 60, label: '1 min' },
   { seconds: 90, label: '90 s' },
@@ -109,24 +109,6 @@ export function summarizeGitgud(state: GitgudState): string {
   const text = [counts.join(' · '), ...flags].filter(part => part !== '').join(' ')
 
   return text === '' ? '–' : text
-}
-
-/** A plain Button showing a choice: bold and underlined while on, dim while off (the dock's own tab look). */
-function choiceButton(ui: DockElements, key: string, label: string, isOn: boolean): JSX.Element {
-  const { Button, Text } = ui
-
-  return (
-    <Button key={key} plain onPress={() => undefined}>
-      <Text bold={isOn} underline={isOn} dimColor={!isOn}>
-        {label}
-      </Text>
-    </Button>
-  )
-}
-
-/** `● 90 s`, `○ 5 min`. */
-function radioLabel(isPicked: boolean, text: string): string {
-  return `${isPicked ? '●' : '○'} ${text}`
 }
 
 function tabCount(state: GitgudState, view: GhView): number | undefined {
@@ -658,29 +640,6 @@ function drawDocs(ui: Ui, state: GitgudState): JSX.Element | null {
   )
 }
 
-/** One settings row: the label dim in its column, then what it holds. */
-function drawSettingRow(ui: Ui, label: string, value: JSX.Element): JSX.Element {
-  const { Box, Text } = ui
-
-  return (
-    <Box flexDirection="row">
-      <Box width={SETTINGS_LABEL_CELLS} flexShrink={0}>
-        <Text dimColor>{label}</Text>
-      </Box>
-      <Box flexDirection="row" columnGap={2} flexShrink={1}>
-        {value}
-      </Box>
-    </Box>
-  )
-}
-
-/** A setting's choices, one per line: `● Notice only`, `○ Notice + terminal bell`. */
-function drawChoiceColumn(ui: Ui, choices: ReadonlyArray<{ key: string; label: string; isOn: boolean }>): JSX.Element {
-  const { Box } = ui
-
-  return <Box flexDirection="column">{choices.map(choice => choiceButton(ui, choice.key, radioLabel(choice.isOn, choice.label), choice.isOn))}</Box>
-}
-
 /**
  * The background reviews' settings: what tells you one finished (only what this client's notification channel
  * offers), the model, and whether it may look things up on the web.
@@ -709,17 +668,18 @@ function drawReviewSettings(ui: Ui, state: GitgudState): JSX.Element {
       {drawSettingRow(
         ui,
         'Model',
-        <Box flexDirection="row" columnGap={2}>
-          {REVIEW_MODELS.map(one => choiceButton(ui, `${KEY.reviewModel}${one}`, radioLabel(model === one, modelName(one)), model === one))}
-        </Box>
+        drawChoiceRow(
+          ui,
+          REVIEW_MODELS.map(one => ({ key: `${KEY.reviewModel}${one}`, label: modelName(one), isOn: model === one }))
+        )
       )}
       {drawSettingRow(
         ui,
         'Web lookups',
-        <Box flexDirection="row" columnGap={2}>
-          {choiceButton(ui, `${KEY.reviewWeb}on`, radioLabel(isWebOn, 'On'), isWebOn)}
-          {choiceButton(ui, `${KEY.reviewWeb}off`, radioLabel(!isWebOn, 'Off'), !isWebOn)}
-        </Box>
+        drawChoiceRow(ui, [
+          { key: `${KEY.reviewWeb}on`, label: 'On', isOn: isWebOn },
+          { key: `${KEY.reviewWeb}off`, label: 'Off', isOn: !isWebOn }
+        ])
       )}
     </Box>
   )
@@ -782,9 +742,10 @@ function drawSettings(ui: Ui, state: GitgudState, columns: number): JSX.Element 
         {drawSettingRow(
           ui,
           'Refresh',
-          <Box flexDirection="row" columnGap={2}>
-            {POLL_CHOICES.map(choice => choiceButton(ui, `${KEY.poll}${choice.seconds}`, radioLabel(poll === choice.seconds, choice.label), poll === choice.seconds))}
-          </Box>
+          drawChoiceRow(
+            ui,
+            POLL_CHOICES.map(choice => ({ key: `${KEY.poll}${choice.seconds}`, label: choice.label, isOn: poll === choice.seconds }))
+          )
         )}
         {drawSettingRow(
           ui,

@@ -3,6 +3,11 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { isAllowedArgv } from '../hooks/panels/gitgud/guard'
 
+/** The Branch card's own read-only worktree listing runs in the same session; the guard is GitGud's. */
+function isBranchWorktreeRead(argv: readonly string[]): boolean {
+  return argv[0] === 'git' && argv.includes('worktree') && argv.includes('list')
+}
+
 const REPO = 'acme/webapp'
 
 function ran(exitCode: number, stdout: string): ProcessRunResult {
@@ -50,7 +55,6 @@ test('a new overlap raises one band notice; a seen one, checked again, does not'
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   const band = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
   const noticesAbout = async (text: RegExp) => {
     await band.redraw(bandProps)
@@ -104,7 +108,6 @@ test("after a branch switch the check reads the branch again: the new branch's o
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   const band = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
   // The tick finds #5 on feat/x (seeded silently); the overlap row and its ↻ are drawn from then on.
   await clock.advance(60_000)
@@ -165,7 +168,6 @@ test('a shared file opens the inspector with both diffs; the row menu fills a co
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   await clock.advance(60_000)
 
   // ▸ shows the shared files; pressing one opens the inspector on the doc pane.
@@ -189,7 +191,7 @@ test('a shared file opens the inspector with both diffs; the row menu fills a co
   expect(filled[0]).toContain('+deux')
   expect(filled[0]).toContain('with `!`')
   expect(await pane.find({ key: 'gitgud-overlap-act-copy-5' })).toBeUndefined()
-  expect(argvs.filter((argv) => !isAllowedArgv(argv))).toEqual([])
+  expect(argvs.filter((argv) => !isAllowedArgv(argv) && !isBranchWorktreeRead(argv))).toEqual([])
   await doc.unmount()
   await pane.unmount()
 })
@@ -228,7 +230,6 @@ test('an untracked symlink is not read through to its target; the inspector says
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   await clock.advance(60_000)
   await pane.press({ key: 'gitgud-overlap-toggle' })
   await pane.press({ key: `gitgud-overlap-file-5-${encodeURIComponent('src/a.ts')}` })
@@ -275,7 +276,6 @@ test('a cut PR file list says it is too large and is read again, never cached as
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   await clock.advance(60_000)
   await pane.press({ key: 'gitgud-overlap-toggle' })
   await pane.press({ key: `gitgud-overlap-file-5-${encodeURIComponent('src/a.ts')}` })

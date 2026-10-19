@@ -1229,6 +1229,21 @@ async function cardOpened($: EngineInterface): Promise<void> {
   else await fillOneLiners($)
 }
 
+/**
+ * Reset all settings: its settings, Haiku lines and open setup are forgotten, so it asks again. Background reviews
+ * keep running; the alert ledgers were emptied with the store and refill without alerts. No keychain, env or file is touched.
+ */
+async function forgetSettings($: EngineInterface): Promise<void> {
+  jiraReadAt.clear()
+  await update($, gitgudState, (value): GitgudState => {
+    const { setup: _setup, ...rest } = value
+
+    return { ...rest, isSettingsLoaded: undefined, settings: undefined, oneLiners: undefined, ui: value.ui ? { ...value.ui, isSettingsOpen: undefined } : value.ui }
+  })
+  await loadSettings($)
+  if (await isPlaced($)) detach(refreshAll($))
+}
+
 /** ↻: `gh`, the repo and the branch checked again, the backoff and a Jira refusal forgotten, then a poll. */
 async function refreshAll($: EngineInterface): Promise<void> {
   isStarted = false
@@ -1783,6 +1798,14 @@ export function registerGitgudHooks(on: On): void {
     return pressed
   })
 
+  // Reset all settings in ⚙ Manage: the dock has emptied the store by the time `next` returns.
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-reset-all-yes$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await forgetSettings($)
+
+    return pressed
+  })
+
   on('ui.press', { plugin: 'claudedockula', element: 'gitgud-settings' }, async ($, e) => {
     await toggleSettings($)
 
@@ -1944,7 +1967,6 @@ export const gitgudPanel: DockPanel = {
   icon: '🐙',
   description: 'Your review requests, PRs/MRs and issues on GitHub, GitLab or Bitbucket: CI, reviews, Jira, overlaps',
   isBuiltIn: true,
-  isOptIn: true,
   hasSettings: true,
   revision: 4,
   whatsNew: "The GitHub panel is now GitGud: it reads GitLab and Bitbucket too, and asks which service when it can't tell"

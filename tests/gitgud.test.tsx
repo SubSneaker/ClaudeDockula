@@ -4,6 +4,11 @@ import { expect, mock, test } from 'claude-code/testing'
 import { PANELS } from '../hooks/panels'
 import { isAllowedArgv } from '../hooks/panels/gitgud/guard'
 
+/** The Branch card's own read-only worktree listing runs in the same session; the guard is GitGud's. */
+function isBranchWorktreeRead(argv: readonly string[]): boolean {
+  return argv[0] === 'git' && argv.includes('worktree') && argv.includes('list')
+}
+
 // The whole GitGud panel, main path: ticked in, `gh` answers, the band says it, a row opens, an action fills the prompt, the overlap opens.
 
 const NOW = Date.parse('2026-10-16T12:00:00Z')
@@ -94,7 +99,6 @@ test('ticked in, the band counts the lists, a row opens and fills the prompt, th
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   const band = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
   await clock.advance(60_000)
   await pane.press({ key: 'gitgud-refresh' })
@@ -115,7 +119,73 @@ test('ticked in, the band counts the lists, a row opens and fills the prompt, th
   expect(textOf(await pane.drawn())).not.toContain('a.ts')
   await pane.press({ key: 'gitgud-overlap-toggle' })
   expect(textOf(await pane.drawn())).toContain('a.ts')
-  expect(argvs.filter(argv => !isAllowedArgv(argv))).toEqual([])
+  expect(argvs.filter(argv => !isAllowedArgv(argv) && !isBranchWorktreeRead(argv))).toEqual([])
   await band.unmount()
+  await pane.unmount()
+})
+
+test('Reset all settings forgets GitGud settings and its open ⚙, reads again, and refills the alert ledger without alerts', { timeoutMs: 30_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const seen = Object.fromEntries(PANELS.map(panel => [panel.id, panel.revision ?? 1]))
+  const argvs: string[][] = []
+  const states: { settings?: { pollSeconds?: number }; ui?: { isSettingsOpen?: boolean } }[] = []
+  const notices: unknown[] = []
+  const stored = new Map<string, unknown>()
+  on('store.set', { key: 'gitgud:alerted' }, ($, e, next) => {
+    stored.set(e.key, e.value)
+
+    return next(e)
+  })
+  mock.store(on, { 'panels:seen': seen, 'gitgud:settings': { isHaikuOn: false, pollSeconds: 300 } })
+  on('process.run', ($, e) => {
+    argvs.push([...e.argv])
+    const [command, group, action] = e.argv
+    if (command === 'git' && e.argv.includes('status')) return { value: ran(0, '') }
+    if (command === 'git' && e.argv.includes('merge-base')) return { value: ran(1, '') }
+    if (command === 'git') return { value: ran(0, 'feat/x\n') }
+    if (group === 'auth') return { value: ran(0, '') }
+    if (group === 'repo') return { value: ran(0, JSON.stringify({ nameWithOwner: REPO, url: `https://github.com/${REPO}`, defaultBranchRef: { name: 'develop' } })) }
+    if (group === 'api') return { value: ran(0, LISTS) }
+    if (group === 'pr' && action === 'list') return { value: ran(0, '[]') }
+    if (group === 'pr' && action === 'checks') return { value: ran(0, '[]') }
+
+    return { value: ran(1, '') }
+  })
+  on('state.set', { key: 'gitgud' }, ($, e, next) => {
+    if (e.key === 'gitgud') states.push(e.value)
+
+    return next(e)
+  })
+  on('state.set', { key: 'notices' }, ($, e, next) => {
+    notices.push(e.value)
+
+    return next(e)
+  })
+  on('session.start', () => ({ cwd: '/repo' }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('session.root', () => ({ value: '/repo' }))
+  on('session.cwd', () => ({ value: '/repo' }))
+  on('command.list', () => ({ value: [] }))
+  on('ui.panes', () => ({ value: [] }))
+  const paneProps: RenderPropsOf['Pane'] = { title: 'Dock', isFocused: true, bodyColumns: 64, placement: 'dock', scroll: { offset: 0, bodyRows: 80 }, view: {} }
+
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
+  await clock.advance(60_000)
+  await pane.press({ key: 'dock-main-settings-gitgud' })
+  expect(states.at(-1)?.ui?.isSettingsOpen).toBe(true)
+  expect(states.at(-1)?.settings?.pollSeconds).toBe(300)
+
+  // ⚙ Manage empties the store, then the panels hear of it.
+  stored.clear()
+  const noticesBefore = notices.length
+  for (const key of ['dock-main-manage', 'dock-main-reset-all', 'dock-main-reset-all-yes']) await pane.press({ key })
+  await clock.advance(60_000)
+  expect(states.at(-1)?.ui?.isSettingsOpen).not.toBe(true)
+  expect(states.at(-1)?.settings?.pollSeconds).toBeUndefined()
+  expect(stored.get('gitgud:alerted')).toBeDefined()
+  const topics = notices.slice(noticesBefore).flatMap(list => (Array.isArray(list) ? list.map((notice: unknown) => (typeof notice === 'object' && notice !== null && 'topic' in notice ? notice.topic : undefined)) : []))
+  expect(topics.filter(topic => topic !== 'reset')).toEqual([])
+  expect(argvs.filter(argv => argv.some(part => part === 'security' || part === 'secret-tool'))).toEqual([])
   await pane.unmount()
 })

@@ -47,7 +47,13 @@ export function readPackPanels(raw: unknown, builtInIds: readonly string[]): Pac
       dropped.push(`${shown}: listed twice`)
     } else if (isRecord(entry)) {
       const description = nonBlank(entry.description)
-      panels.push({ id, title: nonBlank(entry.title) ?? id, icon: nonBlank(entry.icon) ?? FALLBACK_ICON, description: description ?? '' })
+      panels.push({
+        id,
+        title: nonBlank(entry.title) ?? id,
+        icon: nonBlank(entry.icon) ?? FALLBACK_ICON,
+        description: description ?? '',
+        ...(entry.hasSettings === true ? { hasSettings: true } : {})
+      })
     }
   }
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>ClaudeDockula</title>
+  <path d="M6.5 7.5 L4.2 1.6 L11 6.2 Z" fill="#f0506e"/>
+  <path d="M25.5 7.5 L27.8 1.6 L21 6.2 Z" fill="#f0506e"/>
+  <rect x="2" y="5.5" width="28" height="22" rx="5.5" fill="#16181d" stroke="#4a4c55" stroke-width="1.5"/>
+  <rect x="18" y="9.5" width="8" height="14" rx="1.6" fill="#f0506e"/>
+  <rect x="6" y="19.5" width="8.5" height="4" rx="1.2" fill="#8fd18a"/>
+  <path d="M10.5 27 L12 31 L13.5 27 Z" fill="#f4f2ee"/>
+  <path d="M18.5 27 L20 31 L21.5 27 Z" fill="#f4f2ee"/>
+</svg>

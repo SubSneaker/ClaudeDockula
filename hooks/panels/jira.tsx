@@ -13,15 +13,16 @@ import type {
   JiraState,
   JiraTicket,
   NoticeTone,
+  JiraPanelSettings,
   Settings
 } from '../../types'
-import { DEFAULT_LAYOUT, hiddenPaneIds, isShownIn } from '../dock/layout'
+import { DEFAULT_LAYOUT, bandPanelIds, hiddenPaneIds, isShownIn, readLayout } from '../dock/layout'
 import { NO_NOTICES, pushNotice } from '../dock/notices'
+import { drawChoiceColumn, drawChoiceRow, drawSettingRow, drawSettingsView } from '../dock/settingsView'
 import { cellWidth, drawActions, drawFieldRows, drawNote, fitEnd } from '../dock/ui'
 import {
   DEFAULT_BRANCH_TEMPLATE,
   DEFAULT_JQL,
-  DEFAULT_TICKET_PATTERN,
   SETTINGS_KEY,
   SET_UP_SUMMARY,
   detectJiraServers,
@@ -81,6 +82,7 @@ import {
   transitionsCall,
   withPermissionHint
 } from './jira/servers'
+import { JIRA_PANEL_SETTINGS_KEY, REFRESH_CHOICES, DEFAULT_REFRESH_SECONDS, listRefreshMs, parseJiraPanelSettings } from './jira/panelSettings'
 import {
   buildJiraSetup,
   settingsFromSetup,
@@ -106,10 +108,10 @@ import {
 
 const REFRESH_KEY = 'jira-refresh'
 const OPEN_KEY = 'jira-open'
-const SETUP_KEY = 'jira-setup'
 const SETUP_SERVER_KEY = 'jira-setup-server-'
 const SETUP_SITE_KEY = 'jira-setup-site-'
 const SETUP_FIELD_KEY = 'jira-setup-field-'
+const REFRESH_CHOICE_KEY = 'jira-set-refresh-'
 const SAVE_KEY = 'jira-save'
 const CANCEL_KEY = 'jira-cancel'
 /** The board's `Client` key, the dock's id after it (`jira-board-main`): two docks showing the board hold two instances. */
@@ -123,7 +125,6 @@ const ACT_KEY = 'jira-act-'
 const ACT_PRESS = /^jira-act-(move|branch|open|pr|link|full)-(.+)$/
 const CONFIRM_KEY = 'jira-confirm-'
 const BRANCH_CHECK_MS = 60_000
-const LIST_REFRESH_MS = 120_000
 const MAX_BOARDS = 5
 const BOARD_STORE_KEY = 'jiraBoardChoices'
 const GIT_BRANCH = ['git', '--no-optional-locks', 'rev-parse', '--abbrev-ref', 'HEAD']
@@ -208,6 +209,19 @@ async function loadSettings($: EngineInterface): Promise<Settings> {
   await update($, jiraState, value => ({ ...value, isSettingsLoaded: true, settings }))
 
   return settings
+}
+
+/** The shared settings as the store holds them now, so a save keeps what Branch or another session wrote since. */
+async function readFreshSettings($: EngineInterface): Promise<Settings> {
+  return parseSettings(await $.store.get(SETTINGS_KEY).catch(() => undefined))
+}
+
+/** The panel's own settings, read from the store into the state. */
+async function loadPanelSettings($: EngineInterface): Promise<JiraPanelSettings> {
+  const panelSettings = parseJiraPanelSettings(await $.store.get(JIRA_PANEL_SETTINGS_KEY).catch(() => undefined))
+  await update($, jiraState, value => ({ ...value, panelSettings }))
+
+  return panelSettings
 }
 
 /** The connected MCP servers that expose Jira tools. */
@@ -435,7 +449,7 @@ async function loadIssue($: EngineInterface, key: string): Promise<void> {
 async function syncJira($: EngineInterface, { force }: { force: boolean }): Promise<void> {
   const settings = await loadSettings($)
   if (!settings.jira) return
-  const key = await readBranchTicketKey($, settings.ticketPattern)
+  const key = await readBranchTicketKey($, (await readFreshSettings($)).ticketPattern)
   const previous = await read($, jiraState)
   const hasChanged = !previous.hasCheckedBranch || previous.ticketKey !== key
   if (hasChanged) {
@@ -468,7 +482,7 @@ async function ensureConfigured($: EngineInterface): Promise<JiraSettings | unde
   await update($, jiraState, value => ({ ...value, hasNoServer: undefined }))
   if (servers.length === 1) {
     const { sites } = await listSites($, only.name)
-    const outcome = settingsFromSetup(withSites(withChosenServer(buildJiraSetup(servers, settings), only.name), sites), settings)
+    const outcome = settingsFromSetup(withSites(withChosenServer(buildJiraSetup(servers, settings), only.name), sites), await readFreshSettings($))
     if (outcome) {
       await saveSettings($, outcome.settings)
 
@@ -496,17 +510,37 @@ async function saveSettings($: EngineInterface, settings: Settings): Promise<voi
   })
 }
 
+/** Whether some dock's view holds the panel: it is opt-in, so until then it calls no server. */
+async function isPlaced($: EngineInterface): Promise<boolean> {
+  return bandPanelIds(readLayout(await read($, layoutAtom))).includes('jira')
+}
+
+function stopTickers(): void {
+  branchTicker?.cancel()
+  branchTicker = undefined
+  listTicker?.cancel()
+  listTicker = undefined
+}
+
+/** Runs `work` on a tick while the panel is placed; once it is placed nowhere the timers stop. */
+async function whilePlaced($: EngineInterface, work: () => Promise<void>): Promise<void> {
+  if (await isPlaced($)) await work()
+  else stopTickers()
+}
+
 async function syncAll($: EngineInterface, isForced: boolean): Promise<void> {
+  if (!(await isPlaced($))) return
   if (!(await ensureConfigured($))) return
-  startTickers($)
+  await startTickers($)
   await syncJira($, { force: isForced })
   await loadTickets($, isForced)
 }
 
 /** The two timers, started once the panel is set up: with no server or no choice yet nothing polls. */
-function startTickers($: EngineInterface): void {
-  branchTicker ??= $.clock.every(BRANCH_CHECK_MS, () => void syncJira($, { force: false }))
-  listTicker ??= $.clock.every(LIST_REFRESH_MS, () => void refreshWhileShown($))
+async function startTickers($: EngineInterface): Promise<void> {
+  const { panelSettings } = await read($, jiraState)
+  branchTicker ??= $.clock.every(BRANCH_CHECK_MS, () => void whilePlaced($, () => syncJira($, { force: false })))
+  listTicker ??= $.clock.every(listRefreshMs(panelSettings), () => void whilePlaced($, () => refreshWhileShown($)))
 }
 
 /** Opens the link with the first command the machine has: `open` (macOS), `xdg-open` (Linux), `start` (Windows). */
@@ -707,7 +741,9 @@ async function loadSetupSites($: EngineInterface, server: string): Promise<void>
 
 /** Opens the form filled with what is saved, to change it. */
 async function openJiraSetup($: EngineInterface): Promise<void> {
-  const settings = await loadSettings($)
+  await loadSettings($)
+  const settings = await readFreshSettings($)
+  await loadPanelSettings($)
   const servers = await readJiraServers($)
   if (servers.length === 0 && !settings.jira) {
     await update($, jiraState, value => ({ ...value, hasNoServer: true }))
@@ -731,16 +767,59 @@ async function chooseSetupSite($: EngineInterface, index: number): Promise<void>
   if (site) await changeSetup($, setup => withChosenSite(setup, site.cloudId))
 }
 
+/** Saves the list refresh and restarts its timer at the new pace. */
+async function saveRefreshSeconds($: EngineInterface, seconds: number): Promise<void> {
+  const fresh = parseJiraPanelSettings(await $.store.get(JIRA_PANEL_SETTINGS_KEY).catch(() => undefined))
+  const panelSettings: JiraPanelSettings = { ...fresh, listRefreshSeconds: seconds }
+  await $.store.set(JIRA_PANEL_SETTINGS_KEY, panelSettings).catch(() => undefined)
+  await update($, jiraState, value => ({ ...value, panelSettings }))
+  listTicker?.cancel()
+  listTicker = undefined
+}
+
+/** ⚙ in the card's header: opens the form, or closes it once the panel is set up. */
+async function toggleJiraSettings($: EngineInterface): Promise<void> {
+  const { setup, settings } = await read($, jiraState)
+  if (!setup) {
+    await openJiraSetup($)
+
+    return
+  }
+  if (!settings?.jira) return
+  await update($, jiraState, value => {
+    const { setup: _setup, ...rest } = value
+
+    return rest
+  })
+}
+
+/** Reset all: asks for a server and site again. A move already sent finishes; answers still on the way write nothing. */
+async function forgetJira($: EngineInterface): Promise<void> {
+  latestRequest += 1
+  latestListRequest += 1
+  latestBoardRequest += 1
+  listTicker?.cancel()
+  listTicker = undefined
+  await update($, jiraState, value => {
+    const { settings: _settings, isSettingsLoaded: _loaded, boardChoices: _choices, setup: _setup, panelSettings: _panel, hasNoServer: _none, ...rest } =
+      withFreshLoad(value)
+
+    return { ...rest, isLoading: false, isListLoading: false, isBoardLoading: false }
+  })
+  await syncAll($, false)
+}
+
 async function saveSetup($: EngineInterface): Promise<void> {
   const { setup } = await read($, jiraState)
   if (!setup) return
-  const outcome = settingsFromSetup(setup, await loadSettings($))
+  const outcome = settingsFromSetup(setup, await readFreshSettings($))
   if (!outcome) {
     await changeSetup($, current => ({ ...current, note: 'Pick a server and a site first.' }))
 
     return
   }
   await saveSettings($, outcome.settings)
+  if (setup.refreshSeconds !== undefined) await saveRefreshSeconds($, setup.refreshSeconds)
   if (outcome.note) await update($, jiraState, value => ({ ...value, setup: { ...setup, note: outcome.note } }))
   await syncAll($, true)
 }
@@ -762,6 +841,7 @@ export function registerJiraHooks(on: On): void {
       isBoardLoading: false
     }))
     await loadSettings($)
+    await loadPanelSettings($)
     void syncAll($, false)
 
     return started
@@ -780,8 +860,32 @@ export function registerJiraHooks(on: On): void {
     return { element: e.element }
   })
 
-  on('ui.press', { plugin: 'claudedockula', element: SETUP_KEY }, async ($, e) => {
-    await openJiraSetup($)
+  // Ticking the panel into a view in ⚙ Manage starts it; unticking the last place stops its timers.
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-enable-\d+-jira$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    if (await isPlaced($)) void syncAll($, false)
+    else stopTickers()
+
+    return pressed
+  })
+
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-jira$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await toggleJiraSettings($)
+
+    return pressed
+  })
+
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-reset-all-yes$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await forgetJira($)
+
+    return pressed
+  })
+
+  on('ui.press', { plugin: 'claudedockula', element: /^jira-set-refresh-(60|120|300)$/ }, async ($, e) => {
+    const seconds = Number(e.element.slice(REFRESH_CHOICE_KEY.length))
+    await changeSetup($, setup => ({ ...setup, refreshSeconds: seconds }))
 
     return { element: e.element }
   })
@@ -798,9 +902,9 @@ export function registerJiraHooks(on: On): void {
     return { element: e.element }
   })
 
-  on('ui.input', { plugin: 'claudedockula', element: /^jira-setup-field-(jql|branchTemplate|ticketPattern)$/, kind: 'change' }, async ($, e) => {
+  on('ui.input', { plugin: 'claudedockula', element: /^jira-setup-field-(jql|branchTemplate)$/, kind: 'change' }, async ($, e) => {
     const field = e.element.slice(SETUP_FIELD_KEY.length)
-    if (field === 'jql' || field === 'branchTemplate' || field === 'ticketPattern') {
+    if (field === 'jql' || field === 'branchTemplate') {
       await changeSetup($, setup => withSetupField(setup, field, e.value))
     }
 
@@ -826,10 +930,10 @@ export function registerJiraHooks(on: On): void {
   // Opening the panel loads the list again when it is older than the slow refresh.
   on('ui.press', { plugin: 'claudedockula', element: /^dock-(tab|main-toggle|\d+-toggle)-jira$/ }, async ($, e, next) => {
     const pressed = await next(e)
-    const { listedAt, isListLoading, settings } = await read($, jiraState)
+    const { listedAt, isListLoading, settings, panelSettings } = await read($, jiraState)
     const now = await $.clock.now()
     if (!settings?.jira) void syncAll($, false)
-    else if (!isListLoading && (listedAt === undefined || now - listedAt > LIST_REFRESH_MS)) void loadTickets($)
+    else if (!isListLoading && (listedAt === undefined || now - listedAt > listRefreshMs(panelSettings))) void loadTickets($)
 
     return pressed
   })
@@ -1134,72 +1238,80 @@ function drawPlainBoard(ui: Elements[RenderSurface], state: JiraState, lanes: re
 }
 
 /** `● name` for the picked entry, `○ name` for the others. */
-function choiceLabel(isPicked: boolean, text: string, columns: number): string {
-  return fitEnd(`${isPicked ? '●' : '○'} ${text}`, columns)
-}
-
 /**
- * The setup form: which server and site when there is a choice, and, once the panel is set up, the ticket query
- * and the branch fields; Input where the surface has one.
+ * The ⚙ view: which server and site when there is a choice, and, once the panel is set up, the ticket query, the
+ * branch name and the refresh; Input where the surface has one.
  */
 function drawSetup(ui: Elements[RenderSurface], state: JiraState, setup: JiraSetup, columns: number): JSX.Element {
-  const { Box, Button } = ui
+  const { Button } = ui
   const isSaved = state.settings?.jira !== undefined
   const hasSites = setup.sites.length > 1
   const hasServers = setup.servers.length > 1
-  const intro = hasServers ? 'Pick the Atlassian MCP server to read Jira through.' : 'Pick the Jira site to use.'
-  const drawInput = (field: JiraSetupField, label: string, placeholder: string, value: string): JSX.Element | null => {
-    if (!('Input' in ui)) return null
+  const refresh = setup.refreshSeconds ?? state.panelSettings?.listRefreshSeconds ?? DEFAULT_REFRESH_SECONDS
+  const drawInput = (field: JiraSetupField, label: string, placeholder: string, value: string): JSX.Element => {
+    if (!('Input' in ui)) return drawSettingRow(ui, label, drawNote(ui, 'From the terminal.'))
     const { Input } = ui
 
-    return (
-      <Box flexDirection="column" marginTop={1}>
-        {drawNote(ui, label)}
-        <Input key={`${SETUP_FIELD_KEY}${field}`} placeholder={placeholder} value={value} submitLabel="done" onSubmit={() => undefined} />
-      </Box>
+    return drawSettingRow(ui, label, <Input key={`${SETUP_FIELD_KEY}${field}`} placeholder={placeholder} value={value} submitLabel="done" onSubmit={() => undefined} />)
+  }
+  const rows: JSX.Element[] = []
+  if (hasServers) {
+    rows.push(drawNote(ui, 'Pick the Atlassian MCP server to read Jira through.'))
+    rows.push(
+      drawSettingRow(
+        ui,
+        'Server',
+        drawChoiceColumn(
+          ui,
+          setup.servers.map((server, index) => ({ key: `${SETUP_SERVER_KEY}${index}`, label: server.name, isOn: server.name === setup.server }))
+        )
+      )
+    )
+  } else if (hasSites) {
+    rows.push(drawNote(ui, 'Pick the Jira site to use.'))
+  }
+  if (setup.isLoadingSites) rows.push(drawNote(ui, 'Looking for sites…'))
+  if (hasSites) {
+    rows.push(
+      drawSettingRow(
+        ui,
+        'Site',
+        drawChoiceColumn(
+          ui,
+          setup.sites.map((site, index) => ({ key: `${SETUP_SITE_KEY}${index}`, label: siteLabel(site), isOn: site.cloudId === setup.siteId }))
+        )
+      )
     )
   }
-
-  return (
-    <Box flexDirection="column" width={columns}>
-      {(hasServers || hasSites) && drawNote(ui, intro)}
-      {hasServers && (
-        <Box flexDirection="column" marginTop={1}>
-          {setup.servers.map((server, index) => (
-            <Button
-              key={`${SETUP_SERVER_KEY}${index}`}
-              plain
-              label={choiceLabel(server.name === setup.server, server.name, columns)}
-              onPress={() => undefined}
-            />
-          ))}
-        </Box>
-      )}
-      {setup.isLoadingSites && <Box marginTop={1}>{drawNote(ui, 'Looking for sites…')}</Box>}
-      {hasSites && (
-        <Box flexDirection="column" marginTop={1}>
-          {drawNote(ui, 'Which site?')}
-          {setup.sites.map((site, index) => (
-            <Button
-              key={`${SETUP_SITE_KEY}${index}`}
-              plain
-              label={choiceLabel(site.cloudId === setup.siteId, siteLabel(site), columns)}
-              onPress={() => undefined}
-            />
-          ))}
-        </Box>
-      )}
-      {setup.isEditing && drawInput('jql', 'Tickets to list (JQL)', DEFAULT_JQL, setup.jql)}
-      {setup.isEditing && drawInput('branchTemplate', 'New branch name ({key} is the ticket)', DEFAULT_BRANCH_TEMPLATE, setup.branchTemplate)}
-      {setup.isEditing && drawInput('ticketPattern', 'Ticket pattern in a branch name', DEFAULT_TICKET_PATTERN, setup.ticketPattern)}
-      {setup.isEditing && !('Input' in ui) && <Box marginTop={1}>{drawNote(ui, 'Edit the query and branch names from the terminal.')}</Box>}
-      {setup.note !== undefined && <Box marginTop={1}>{drawNote(ui, setup.note)}</Box>}
-      {drawActions(ui, [
-        <Button key={SAVE_KEY} variant="primary" label="Save" onPress={() => undefined} />,
-        ...(isSaved ? [<Button key={CANCEL_KEY} plain dimColor label="Cancel" onPress={() => undefined} />] : [])
-      ])}
-    </Box>
+  if (setup.isEditing) {
+    rows.push(
+      drawInput('jql', 'Tickets (JQL)', DEFAULT_JQL, setup.jql),
+      drawInput('branchTemplate', 'Branch name', DEFAULT_BRANCH_TEMPLATE, setup.branchTemplate),
+      drawNote(ui, 'Ticket pattern: set in 🌿 Branch ⚙')
+    )
+  }
+  rows.push(
+    drawSettingRow(
+      ui,
+      'List refresh',
+      drawChoiceRow(
+        ui,
+        REFRESH_CHOICES.map(seconds => ({ key: `${REFRESH_CHOICE_KEY}${seconds}`, label: `${seconds / 60} min`, isOn: refresh === seconds }))
+      )
+    )
   )
+  if (setup.note !== undefined) rows.push(drawNote(ui, setup.note))
+
+  return drawSettingsView(ui, {
+    title: '⚙ Jira settings',
+    detail: 'for every session',
+    rows,
+    footer: [
+      <Button key={SAVE_KEY} variant="primary" label="Save" onPress={() => undefined} />,
+      ...(isSaved ? [<Button key={CANCEL_KEY} plain dimColor label="Cancel" onPress={() => undefined} />] : [])
+    ],
+    columns
+  })
 }
 
 /** What the card says before the panel is set up: reading settings, no server, or looking for one. */
@@ -1220,7 +1332,7 @@ function drawNotConfigured(ui: Elements[RenderSurface], state: JiraState): JSX.E
 /**
  * The card's body, from its stored state: the board picker and the lanes (a draggable `Client` on the terminal
  * and desktop, a Select and Buttons elsewhere), the notes and errors, then Refresh, Open for the branch's
- * ticket and ⚙ for the settings. Before the panel is set up the card asks instead. `surface` decides, not the
+ * ticket. Before the panel is set up the card asks instead. `surface` decides, not the
  * table: vscode's table carries a `Client` it does not draw. `dockId` keys the board per dock.
  */
 export function drawJira(
@@ -1259,8 +1371,7 @@ export function drawJira(
         <Button key={REFRESH_KEY} plain dimColor label="↻ Refresh" onPress={() => undefined} />,
         ...(branchIssue
           ? [<Button key={OPEN_KEY} plain dimColor label={`↗ Open ${branchIssue.key}`} onPress={() => undefined} />]
-          : []),
-        <Button key={SETUP_KEY} plain dimColor label="⚙" onPress={() => undefined} />
+          : [])
       ])}
     </Box>
   )
@@ -1272,6 +1383,8 @@ export const jiraPanel: DockPanel = {
   icon: '🎫',
   description: 'Your Jira tickets in the board’s lanes: drag to move, right-click or ⋯ for more',
   isBuiltIn: true,
-  revision: 2,
-  whatsNew: 'Cards show their pull request’s CI and review state'
+  isOptIn: true,
+  hasSettings: true,
+  revision: 3,
+  whatsNew: 'Settings moved to ⚙ in the card’s header'
 }

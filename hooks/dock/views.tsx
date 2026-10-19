@@ -454,6 +454,42 @@ function drawRemovals(ui: DockElements, scene: DockScene): JSX.Element {
   )
 }
 
+const RESET_QUESTION = {
+  'reset-layout': 'Reset layout? Docks go back to a new install\'s.',
+  'reset-all': 'Reset all settings? Every panel asks again.',
+} as const satisfies Record<NonNullable<DockView['confirm']>, string>
+const RESET_NOTE = 'Close or restart other open sessions, or they keep their own.'
+
+/** Reset layout and Reset all settings; a press swaps the row for its question with Yes and No. */
+function drawResets(ui: DockElements, scene: DockScene): JSX.Element {
+  const { Box, Button, Text } = ui
+  const { dock } = scene
+  if (dock.confirm === undefined) {
+    return (
+      <Box flexDirection="row" columnGap={3}>
+        <Button key={dockKey(dock.id, 'reset-layout')} plain dimColor label="↺ Reset layout" onPress={() => undefined} />
+        <Button key={dockKey(dock.id, 'reset-all')} plain dimColor label="↺ Reset all settings" onPress={() => undefined} />
+      </Box>
+    )
+  }
+  const yes = dock.confirm === 'reset-layout' ? 'reset-layout-yes' : 'reset-all-yes'
+
+  return (
+    <Box flexDirection="column">
+      <Box flexDirection="row" columnGap={2}>
+        <Box flexShrink={1}>
+          <Text wrap="truncate-end">{RESET_QUESTION[dock.confirm]}</Text>
+        </Box>
+        <Box flexDirection="row" columnGap={1} flexShrink={0}>
+          <Button key={dockKey(dock.id, yes)} variant="primary" label="Yes" onPress={() => undefined} />
+          <Button key={dockKey(dock.id, 'reset-no')} plain dimColor label="No" onPress={() => undefined} />
+        </Box>
+      </Box>
+      {drawNote(ui, RESET_NOTE)}
+    </Box>
+  )
+}
+
 /** Manage: the names, a checkbox per panel for the active view with ↑ ↓ for the shown ones, Add panel and the removals. */
 function drawManage(ui: Elements[RenderSurface], scene: DockScene): JSX.Element {
   const { Box, Button, Text } = ui
@@ -500,6 +536,7 @@ function drawManage(ui: Elements[RenderSurface], scene: DockScene): JSX.Element 
           </Box>
         ))}
         {drawRemovals(ui, scene)}
+        {drawResets(ui, scene)}
       </Box>
     ),
   })

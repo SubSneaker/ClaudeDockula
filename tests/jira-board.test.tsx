@@ -73,6 +73,13 @@ function ran(stdout: string): ProcessRunResult {
   return { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
 }
 
+/** Ticks Jira into the main dock's view in ⚙ Manage: it is opt-in, so no view shows it before. */
+async function enableJira(pane: { press: (args: { key: string }) => Promise<unknown> }): Promise<void> {
+  await pane.press({ key: 'dock-main-manage' })
+  await pane.press({ key: 'dock-main-enable-1-jira' })
+  await pane.press({ key: 'dock-main-manage' })
+}
+
 function paneProps(bodyColumns: number): RenderPropsOf['Pane'] {
   return { title: 'Dock', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 60 }, view: {} }
 }
@@ -99,7 +106,10 @@ function rowsOf(tree: unknown): string[] {
 /** The Jira site, as both servers answer it, with the board config by board id and the writes recorded. */
 function mockJira(on: On): JiraMock {
   const jira: JiraMock = { moves: [], writes: [], filled: [], configs: [], denied: [], brokenBoards: [], isWriteFailing: false, draft: '' }
-  on('process.run', () => ({ value: ran('ABC-101/add-export-button\n') }))
+  // Only git answers; GitGud, on by default, finds no gh and shows its setup card instead of a notice.
+  on('process.run', (_$, e) => ({
+    value: e.argv[0] === 'git' ? ran('ABC-101/add-export-button\n') : { ...ran(''), exitCode: 127, stderr: 'command not found' }
+  }))
   on('prompt.read', () => ({ value: { text: jira.draft, cursor: jira.draft.length } }))
   on('prompt.fill', ($, e) => {
     jira.filled.push(e.text)
@@ -158,6 +168,7 @@ test('the board: drag a ticket to a lane and confirm, right-click for the menu; 
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'claudedockula', surface, component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+    if (surface === 'terminal') await enableJira(ui)
     await ui.press({ key: 'jira-refresh' })
     await expect(ui.drawn()).resolves.toBeDefined()
     expect(rowsOf(await ui.drawn({ in: 'jira-board-main' })).slice(0, 3)).toEqual([' Board  Team Board · kanban  ▾', ' ', ' BACKLOG  (1)'])
@@ -274,6 +285,7 @@ test('the board picker: a click or the keys pick a board, kept once it loads; th
   mock.store(on, { settings: SETTINGS })
   const jira = mockJira(on)
   const ui = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  await enableJira(ui)
   const board = { in: 'jira-board-main' }
   await ui.press({ key: 'jira-refresh' })
   expect([...new Set(jira.configs)].sort()).toEqual([356, 357])
@@ -344,6 +356,8 @@ test('a new session follows the board picked before, read from the store', async
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  expect(jira.configs).toEqual([])
+  await enableJira(ui)
   expect(jira.configs).toEqual([356])
   expect(rowsOf(await ui.drawn({ in: 'jira-board-main' }))[0]).toBe(' Board  Sprint Board · scrum  ▾')
   await ui.unmount()
@@ -364,6 +378,7 @@ test('a refused read: the server says why, with the hint; the error notice opens
   jira.denied = ['searchJiraIssuesUsingJql', 'listJiraBoards']
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  await enableJira(ui)
   await ui.press({ key: 'jira-refresh' })
   const listError = await ui.find({ type: 'Text', text: /^Couldn't load your tickets: / })
   expect(listError?.text).toBe(`Couldn't load your tickets: atlassian: ${DENIED}`)
@@ -437,6 +452,7 @@ test('the board in two docks at once: an instance per dock, and one confirm make
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  await enableJira(pane)
   await pane.press({ key: 'jira-refresh' })
   await pane.press({ key: 'dock-main-menu' })
   await pane.press({ key: 'dock-main-new-bottom' })
@@ -468,6 +484,7 @@ test('a plain board\'s confirm goes when its ticket is moved another way', async
   mock.store(on, { settings: SETTINGS })
   const jira = mockJira(on)
   const plain = await $.ui.mount({ plugin: 'claudedockula', surface: 'vscode', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  await enableJira(plain)
   await plain.press({ key: 'jira-refresh' })
   await plain.press({ key: 'jira-menu-ABC-102' })
   await plain.press({ key: 'jira-act-move-ABC-102' })

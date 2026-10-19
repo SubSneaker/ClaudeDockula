@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaudeDockula for Claude Code</title>
+<meta name="description" content="A Claude Code plugin: live panel tabs above the prompt and docks of panels beside your conversation. Branch, Checks, Activity, Jira, GitGud, Slacker, and your own.">
+<meta name="color-scheme" content="dark light">
+<script>
+  // The theme picked with the header button, applied before the page paints.
+  try { var pick = localStorage.getItem('dockula-theme'); if (pick === 'light' || pick === 'dark') document.documentElement.setAttribute('data-theme', pick); } catch (e) { /* storage unavailable */ }
+</script>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+
+:root {
+  --bg: #e8e5de;
+  --surface: #f0ede7;
+  --surface-2: #dedad2;
+  --line: #cbc6bc;
+  --text: #1f2024;
+  --muted: #50535a;
+  --accent: #c42a4c;
+  --accent-ink: #ffffff;
+  --moss: #2f7a3a;
+  color-scheme: light;
+  --term-bg: #141519;
+  --term-fg: #e8e6e3;
+  --term-edge: #2a2b31;
+  --term-line: #3a3b42;
+  --term-muted: #8b8b92;
+  --term-soft: #b8b7b3;
+  --term-hover: #1d1f24;
+  --term-success: #4eba65;
+  --term-error: #ff6b80;
+  --term-warning: #ffc107;
+  --term-suggestion: #b1b9f9;
+  --term-claude: #d77757;
+  --term-merged: #af87ff;
+  --term-ok: #8fd18a;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.03), 0 18px 44px -30px rgba(20, 22, 26, 0.3);
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e0f12;
+    --surface: #15171b;
+    --surface-2: #1b1d22;
+    --line: #2a2d34;
+    --text: #ecebe7;
+    --muted: #9b9ea6;
+    --accent: #f0506e;
+    --accent-ink: #14060a;
+    --moss: #8fd18a;
+    --term-edge: #2a2b31;
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 30px 80px -40px rgba(0, 0, 0, 0.9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e0f12;
+  --surface: #15171b;
+  --surface-2: #1b1d22;
+  --line: #2a2d34;
+  --text: #ecebe7;
+  --muted: #9b9ea6;
+  --accent: #f0506e;
+  --accent-ink: #14060a;
+  --moss: #8fd18a;
+  --term-edge: #2a2b31;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 30px 80px -40px rgba(0, 0, 0, 0.9);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/1.7 var(--mono);
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); text-underline-offset: 3px; }
+a:hover { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+code, kbd { font-family: var(--mono); font-size: 0.93em; }
+code { background: var(--surface-2); border: 1px solid var(--line); padding: 0.08em 0.38em; border-radius: 5px; }
+.wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .wrap { padding: 0 32px; } }
+.skip { position: absolute; left: -999px; top: 8px; background: var(--surface); padding: 8px 12px; border-radius: 6px; z-index: 10; }
+.skip:focus { left: 16px; }
+
+/* Header */
+.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+.mark { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 16px/1 var(--mono); }
+.mark img { width: 28px; height: 28px; flex: none; }
+.nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.nav a { text-decoration: none; color: var(--muted); font-size: 14px; padding: 6px 10px; border-radius: 6px; }
+.nav a:hover { color: var(--text); background: var(--surface-2); }
+.nav .hide-sm { display: none; }
+@media (min-width: 720px) { .nav .hide-sm { display: inline-block; } }
+@media (max-width: 480px) {
+  .top .wrap { gap: 8px; }
+  .mark { font-size: 14px; gap: 8px; }
+  .nav a { font-size: 13px; }
+  .nav { gap: 0; }
+  .nav a { padding: 6px 7px; }
+}
+@media (max-width: 360px) { .nav .hide-xs { display: none; } }
+.theme-btn { border: 1px solid var(--line); background: transparent; color: var(--muted); width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; cursor: pointer; }
+.theme-btn:hover { color: var(--text); background: var(--surface-2); }
+.theme-btn svg { width: 18px; height: 18px; }
+
+/* Hero */
+.hero { padding-top: 56px; padding-bottom: 24px; }
+@media (min-width: 900px) { .hero { padding-top: 72px; padding-bottom: 32px; } }
+h1 { display: flex; align-items: center; gap: 16px; font: 700 clamp(24px, 3.4vw, 36px)/1.3 var(--mono); letter-spacing: -0.01em; margin: 0; max-width: 34ch; text-wrap: balance; }
+.h1-icon { width: clamp(36px, 4.4vw, 48px); height: auto; flex: none; }
+.lede { font-size: 16px; color: var(--muted); max-width: 64ch; margin: 20px 0 28px; text-wrap: pretty; }
+.get { max-width: 640px; }
+.get-title { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+.get .cmds { margin: 0; }
+.get-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin: 4px 0 0; font-size: 14px; }
+.get-more a { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.get-more svg { width: 16px; height: 16px; flex: none; }
+
+/* Demos */
+.demo { position: relative; border-radius: 14px; overflow: hidden; background: var(--term-bg); border: 1px solid var(--term-edge); box-shadow: var(--shadow); }
+.demo hyperframes-player { display: block; width: 100%; height: 100%; }
+.demo.is-note { aspect-ratio: auto; }
+.file-note { margin: 0; padding: 18px 20px; color: var(--term-fg); font-size: 13px; }
+.file-note a { color: inherit; }
+.file-note code { background: var(--term-hover); border-color: var(--term-line); color: inherit; }
+.demo--hero { aspect-ratio: 1280 / 760; margin-top: 40px; }
+.demo--jira { aspect-ratio: 578 / 680; }
+.demo--gitgud { aspect-ratio: 578 / 600; }
+.demo--bottom { aspect-ratio: 1096 / 620; }
+.demo-toggle {
+  position: absolute; right: 10px; bottom: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  font: 400 12px/1 var(--mono); color: var(--term-fg); background: color-mix(in srgb, var(--term-bg) 82%, transparent); border: 1px solid var(--term-line);
+  padding: 7px 10px; border-radius: 999px; cursor: pointer; opacity: 0.75;
+}
+.demo-toggle:hover, .demo-toggle:focus-visible { opacity: 1; }
+.demo-toggle svg { width: 12px; height: 12px; }
+@media (max-width: 560px) { .demo-toggle { right: 6px; bottom: 6px; padding: 5px 8px; font-size: 11px; } }
+.caption { font: 400 13px/1.5 var(--mono); color: var(--muted); margin: 12px 2px 0; }
+
+/* Sections */
+section { padding: 72px 0; }
+@media (min-width: 900px) { section { padding: 104px 0; } }
+h2 { font: 700 clamp(20px, 2.4vw, 24px)/1.35 var(--mono); margin: 0 0 14px; text-wrap: balance; }
+h3 { font: 700 15px/1.4 var(--mono); margin: 0 0 6px; }
+.intro { color: var(--muted); max-width: 44em; margin: 0; }
+.rule-top { border-top: 1px solid var(--line); }
+
+/* Panels list */
+.panels { list-style: none; padding: 0; margin: 40px 0 0; display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line); }
+@media (min-width: 720px) { .panels { grid-template-columns: 1fr 1fr; column-gap: 40px; } }
+.panels li { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto 1fr; align-content: start; gap: 4px 14px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.panels .icon { font-size: 22px; line-height: 1; grid-row: span 2; align-self: start; padding-top: 1px; }
+.panels h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; }
+.panels .opt { font: 400 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 7px; letter-spacing: 0.03em; }
+.panels p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* Feature rows */
+.feature { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: center; padding: 56px 0; border-top: 1px solid var(--line); }
+.feature:first-of-type { border-top: 0; }
+@media (min-width: 960px) {
+  .feature { grid-template-columns: 5fr 6fr; gap: 64px; padding: 72px 0; }
+  .feature--flip .copy { order: 2; }
+  .feature--wide { grid-template-columns: 1fr; }
+  .feature--wide .copy { max-width: 760px; }
+}
+.copy h3 { font: 700 17px/1.4 var(--mono); margin: 0 0 10px; }
+.copy p { color: var(--muted); margin: 0 0 14px; }
+.copy .link { font-weight: 700; }
+.media { min-width: 0; }
+.media .demo { max-width: 578px; margin: 0 auto; }
+.feature--wide .media .demo { max-width: none; }
+
+/* Static terminal rows (the Slacker card) */
+.still { background: var(--term-bg); color: var(--term-fg); border: 1px solid var(--term-edge); border-radius: 14px; box-shadow: var(--shadow); padding: 18px 20px; max-width: 578px; margin: 0 auto; container-type: inline-size; }
+.still .rows { font-family: var(--mono); font-weight: 400; font-size: min(16px, calc(100cqw / 33.6)); line-height: 1.25em; font-variant-ligatures: none; }
+.still .r { height: 1.25em; white-space: pre; overflow: hidden; }
+.still .w1, .still .w2 { display: inline-block; font-style: normal; text-align: center; vertical-align: top; }
+.still .w1 { width: 0.6em; font-variant-emoji: text; }
+.still .w2 { width: 1.2em; }
+.still .b { font-weight: 700; } .still .d { opacity: 0.55; } .still .u { text-decoration: underline; text-underline-offset: 3px; }
+.still .c-success { color: var(--term-success); } .still .c-error { color: var(--term-error); } .still .c-warning { color: var(--term-warning); }
+.still .c-suggestion { color: var(--term-suggestion); } .still .c-claude { color: var(--term-claude); } .still .c-merged { color: var(--term-merged); }
+.still .i { background: var(--term-fg); color: var(--term-bg); }
+@media (max-width: 480px) { .still { padding: 14px 12px; } }
+
+/* Your own panels */
+.narrow p { max-width: 720px; }
+.narrow p { color: var(--muted); margin: 0 0 14px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 20px; }
+.links a { font-weight: 700; color: var(--text); }
+
+/* Install */
+.cmds { display: grid; gap: 12px; margin: 20px 0 0; }
+.cmd { display: flex; align-items: stretch; background: var(--term-bg); color: var(--term-fg); border: 1px solid var(--term-edge); border-radius: 10px; overflow: hidden; }
+.cmd code { flex: 1; min-width: 0; background: none; border: 0; border-radius: 0; color: inherit; font-size: 14px; line-height: 1.5; padding: 13px 14px; white-space: normal; overflow-wrap: anywhere; }
+.cmd code::before { content: '› '; color: var(--term-muted); }
+.copy-btn { flex: none; border: 0; border-left: 1px solid var(--term-edge); background: transparent; color: var(--term-soft); font: 400 13px/1 var(--mono); padding: 0 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.copy-btn:hover, .copy-btn:focus-visible { color: var(--term-fg); background: var(--term-hover); }
+.copy-btn svg { width: 15px; height: 15px; }
+.copy-btn[data-done] { color: var(--term-ok); }
+.req { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; color: var(--muted); font-size: 14px; max-width: 760px; }
+.note { font-size: 13px; color: var(--muted); margin: 18px 0 0; }
+
+/* Docs */
+.docs { display: grid; grid-template-columns: 1fr; gap: 0; margin-top: 36px; border-top: 1px solid var(--line); }
+@media (min-width: 720px) { .docs { grid-template-columns: repeat(3, 1fr); column-gap: 32px; } }
+.docs a { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); text-decoration: none; }
+
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); font-size: 13px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+footer a { text-decoration: none; }
+.foot-mark { display: inline-flex; align-items: center; gap: 10px; }
+.foot-mark img { width: 24px; height: 24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="ClaudeDockula home">
+      <img src="assets/icon.svg" width="28" height="28" alt="">
+      ClaudeDockula
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="hide-sm" href="#panels">Panels</a>
+      <a class="hide-sm" href="#docks">Docks</a>
+      <a class="hide-xs" href="#install">Install</a>
+      <a class="hide-sm" href="#docs">Docs</a>
+      <a href="https://github.com/SubSneaker/ClaudeDockula">GitHub</a>
+      <button class="theme-btn" type="button" id="theme-btn" aria-label="Switch colour theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <div class="wrap hero" id="top">
+    <h1><img class="h1-icon" src="assets/icon.svg" width="48" height="48" alt=""><span>Live panels next to your Claude Code session.</span></h1>
+    <p class="lede">ClaudeDockula adds a row of tabs above the prompt. Each tab shows a short status from one panel. Click a tab to open a dock with the full panels, beside the conversation or below it.</p>
+    <div class="get" id="install">
+      <p class="get-title">Install: run these two commands in Claude Code.</p>
+      <div class="cmds">
+        <div class="cmd"><code id="cmd-1">/plugin marketplace add SubSneaker/ClaudeDockula</code><button class="copy-btn" type="button" data-copy="cmd-1" aria-label="Copy the marketplace command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg><span>Copy</span></button></div>
+        <div class="cmd"><code id="cmd-2">/plugin install claudedockula@dockula</code><button class="copy-btn" type="button" data-copy="cmd-2" aria-label="Copy the install command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg><span>Copy</span></button></div>
+      </div>
+      <p class="note" role="status" aria-live="polite" id="copy-status"></p>
+      <p class="get-more"><a href="#requirements">Requirements</a> <a href="https://github.com/SubSneaker/ClaudeDockula"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a></p>
+    </div>
+    <div class="demo demo--hero">
+      <hyperframes-player role="img" src="assets/comps/hero.html" width="1280" height="760" muted audio-locked loop low-power-idle disable-click-to-play assets-loading-ui="none" data-poster="12.2" aria-label="Animation of a Claude Code session. The tabs above the prompt update while Claude works. A click on the branch tab opens the dock on the right, where sections are closed and opened. Then the dock is closed."></hyperframes-player>
+    </div>
+    <p class="caption">An example session with made-up data.</p>
+  </div>
+
+  <section id="panels" class="rule-top">
+    <div class="wrap">
+      <h2>Built-in panels</h2>
+      <p class="intro">Each panel has a tab above the prompt and a section in a dock. Click a section's header to open or close it.</p>
+      <ul class="panels">
+        <li><span class="icon" aria-hidden="true">🌿</span><h3>Branch</h3><p>The current branch and its changed files. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/branch.md">Guide</a></p></li>
+        <li><span class="icon" aria-hidden="true">✅</span><h3>Checks</h3><p>The type-check, lint, test or build commands you set for a repo. Press Run to run one. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/checks.md">Guide</a></p></li>
+        <li><span class="icon" aria-hidden="true">🕘</span><h3>Activity</h3><p>The files Claude edited and the tools it called in this session. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/activity.md">Guide</a></p></li>
+        <li><span class="icon" aria-hidden="true">🎫</span><h3>Jira <span class="opt">Off by default</span></h3><p>The ticket for your branch and a board of your tickets. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/jira.md">Guide</a></p></li>
+        <li><span class="icon" aria-hidden="true">🐙</span><h3>GitGud</h3><p>Your pull requests and issues on GitHub, GitLab or Bitbucket Cloud. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/gitgud.md">Guide</a></p></li>
+        <li><span class="icon" aria-hidden="true">💬</span><h3>Slacker <span class="opt">Off by default</span></h3><p>Your Slack mentions, direct messages and thread replies. <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/slacker.md">Guide</a></p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="examples" class="rule-top">
+    <div class="wrap">
+      <h2>Examples</h2>
+      <div class="feature">
+        <div class="copy">
+          <h3>Move a Jira ticket</h3>
+          <p>Drag a ticket to another lane on the board. The panel asks before it changes anything in Jira.</p>
+          <a class="link" href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/jira.md">Jira panel guide</a>
+        </div>
+        <div class="media">
+          <div class="demo demo--jira">
+            <hyperframes-player role="img" src="assets/comps/jira.html" width="578" height="680" muted audio-locked loop low-power-idle disable-click-to-play assets-loading-ui="none" data-poster="4.9" aria-label="Animation of the Jira panel. Ticket ABC-140 is dragged from To Do to In Review. The panel asks to confirm, Move is clicked, and the ticket moves to In Review."></hyperframes-player>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature feature--flip">
+        <div class="copy">
+          <h3>Review a pull request in the background</h3>
+          <p>GitGud can start a separate Claude session that reviews a copy of the pull request. It writes a draft review and posts nothing. If it needs a permission, you answer in the panel.</p>
+          <a class="link" href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/gitgud.md">GitGud panel guide</a>
+        </div>
+        <div class="media">
+          <div class="demo demo--gitgud">
+            <hyperframes-player role="img" src="assets/comps/gitgud.html" width="578" height="600" muted audio-locked loop low-power-idle disable-click-to-play assets-loading-ui="none" data-poster="7.6" aria-label="Animation of the GitGud panel. A background review of pull request 2086 runs, asks for permission to fetch a web page, is allowed once, and finishes."></hyperframes-player>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="copy">
+          <h3>Read Slack mentions</h3>
+          <p>Slacker shows new Slack messages for you in the dock. You can reply from the panel.</p>
+          <a class="link" href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/slacker.md">Slacker panel guide</a>
+        </div>
+        <div class="media">
+          <figure class="still" role="img" aria-label="The Slacker panel with three new messages from linus, grace and octocat.">
+            <div class="rows">
+<!-- slacker:start -->
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">💬</i> Slacker                                      </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span></div><div class="r"><span class="d"><i class="w2">🔍</i> Search Slack<i class="w1">…︎</i></span></div><div class="r"><span class="b i"> All 3 </span>  @ 1   DM 1   <i class="w2">🧵</i> 1                       <span class="c-claude"><i class="w1">●︎</i> 3 new</span></div><div class="r"> </div><div class="r"> <span class="c-claude"><i class="w1">●︎</i> </span><span class="b c-suggestion">DM</span> <span class="b">linus</span><span class="d">  linus <i class="w1">×︎</i>2</span>                               <span class="d">4m</span> <span class="d"><i class="w1">⋯︎</i></span></div><div class="r">   the export toggle is back on staging, want to pair o<i class="w1">…︎</i></div><div class="r"> <span class="c-claude"><i class="w1">●︎</i> </span><span class="b c-warning">@ </span> <span class="b">grace</span><span class="d">  #dev-app</span>                              <span class="d">12m</span> <span class="d"><i class="w1">⋯︎</i></span></div><div class="r">   @ada can you look at ABC-131 before standup? <i class="w2">👀</i></div><div class="r"> <span class="c-claude"><i class="w1">●︎</i> </span><span class="b c-merged"><i class="w2">🧵</i></span> <span class="b">octocat</span><span class="d">  #dev-app</span>                            <span class="d">30m</span> <span class="d"><i class="w1">⋯︎</i></span></div><div class="r">   Merged the retry fix, deploy goes out at 3</div><div class="r"> </div><div class="r"><span class="d"><i class="w1">↻︎</i> Refresh</span>  <span class="d"><i class="w1">✓︎</i> Seen</span></div>
+<!-- slacker:end -->
+            </div>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="docks" class="rule-top">
+    <div class="wrap">
+      <div class="feature feature--wide">
+        <div class="copy">
+          <h2>Docks on the right or at the bottom</h2>
+          <p>You can open docks on the right of the conversation, and one dock at the bottom above the prompt. Each dock can have several views and shows its panels in a column or a row. Drag the top edge of the bottom dock to change its height.</p>
+          <a class="link" href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/usage.md">Usage guide</a>
+        </div>
+        <div class="media">
+          <div class="demo demo--bottom">
+            <hyperframes-player role="img" src="assets/comps/bottom.html" width="1096" height="620" muted audio-locked loop low-power-idle disable-click-to-play assets-loading-ui="none" data-poster="4.5" aria-label="Animation of a bottom dock with Branch and Checks side by side. Its top edge is dragged up six rows, then back down."></hyperframes-player>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="your-panels" class="rule-top">
+    <div class="wrap narrow">
+      <h2>Add your own panels</h2>
+      <p>Press ➕ after the tabs above the prompt, or run <code>/dock add</code>, to open the New panel form. Give the panel a name and describe what it shows. You can also choose where its data comes from and how often it refreshes.</p>
+      <p>Send to Claude puts a prompt in your prompt box. Claude then writes the panel in <code>dockula-panels</code>, a separate plugin in your Claude folder. Updates to ClaudeDockula do not change it.</p>
+      <p>Your panels get a tab above the prompt and a section in any dock, the same as the built-in panels. On the terminal and in the desktop app you can drag them, right-click them and type in them.</p>
+      <p class="links"><a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/usage.md#add-your-own-panel">Adding a panel</a> <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/PANEL_GUIDE.md#your-own-panels">How panels are built</a></p>
+    </div>
+  </section>
+
+  <section id="requirements" class="rule-top">
+    <div class="wrap">
+      <h2>Requirements</h2>
+      <ul class="req">
+        <li>Claude Code v2.1.275 or later.</li>
+        <li>Right docks need the fullscreen interface. Set <code>"tui": "fullscreen"</code> in your settings.</li>
+        <li>Jira and Slacker are off by default because they need an MCP server. Turn them on in ⚙ Manage.</li>
+        <li>To update, run <code>claude plugin update claudedockula@dockula</code> in your shell, then <code>/reload-plugins</code> in Claude Code.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="docs" class="rule-top">
+    <div class="wrap">
+      <h2>Documentation</h2>
+      <nav class="docs" aria-label="Documentation">
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/usage.md">Usage guide</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/branch.md">Branch panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/checks.md">Checks panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/activity.md">Activity panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/jira.md">Jira panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/gitgud.md">GitGud panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/docs/panels/slacker.md">Slacker panel</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula/blob/main/PANEL_GUIDE.md">Panel guide</a>
+        <a href="https://github.com/SubSneaker/ClaudeDockula#readme">README</a>
+      </nav>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="foot-mark"><img src="assets/icon.svg" width="24" height="24" alt="">MIT License · SubSneaker</span>
+    <a href="https://github.com/SubSneaker/ClaudeDockula">github.com/SubSneaker/ClaudeDockula</a>
+  </div>
+</footer>
+
+<script>
+  // Opened from disk, the player cannot load the animations, so each one becomes a line saying how to serve the page.
+  if (location.protocol === 'file:') {
+    document.querySelectorAll('hyperframes-player').forEach(function (player) {
+      var note = document.createElement('p');
+      note.className = 'file-note';
+      note.innerHTML = 'The animations need a web server. Run <code>python3 -m http.server -d docs</code> in the repo and open <a href="http://localhost:8000">http://localhost:8000</a>, or see the <a href="https://subsneaker.github.io/ClaudeDockula/">GitHub Pages site</a>.';
+      player.parentElement.classList.add('is-note');
+      player.replaceWith(note);
+    });
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@hyperframes/player@0.8.126/dist/hyperframes-player.global.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+
+  // Theme: follows the system until the button picks one, remembered in this browser when storage allows.
+  var themeButton = document.getElementById('theme-btn');
+  function currentTheme() { return root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+  function labelTheme() { themeButton.setAttribute('aria-label', 'Switch to the ' + (currentTheme() === 'dark' ? 'light' : 'dark') + ' theme'); }
+  themeButton.addEventListener('click', function () {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('dockula-theme', next); } catch (e) { /* storage unavailable */ }
+    labelTheme();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', labelTheme);
+  labelTheme();
+
+  // Copy buttons.
+  var status = document.getElementById('copy-status');
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.className = 'skip';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      ok ? resolve() : reject(new Error('copy failed'));
+    });
+  }
+  document.querySelectorAll('[data-copy]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var text = document.getElementById(button.getAttribute('data-copy')).textContent;
+      var label = button.querySelector('span');
+      copyText(text).then(function () {
+        button.setAttribute('data-done', '');
+        label.textContent = 'Copied';
+        status.textContent = 'Copied: ' + text;
+        setTimeout(function () { button.removeAttribute('data-done'); label.textContent = 'Copy'; }, 1800);
+      }, function () {
+        status.textContent = 'Copy failed. Select the command and copy it by hand.';
+      });
+    });
+  });
+
+  // Demos: play while on screen; with reduced motion, hold a still frame until someone presses Play.
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  var ICON_PAUSE = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" rx="0.8" fill="currentColor"/><rect x="7" y="1.5" width="3" height="9" rx="0.8" fill="currentColor"/></svg>';
+  var ICON_PLAY = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" fill="currentColor"/></svg>';
+  var players = Array.prototype.slice.call(document.querySelectorAll('hyperframes-player'));
+  if (!window.customElements || !customElements.get('hyperframes-player')) return;
+
+  players.forEach(function (player) {
+    var holder = player.parentElement;
+    var state = { visible: false, stopped: reduce.matches, parked: false };
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'demo-toggle';
+    holder.appendChild(button);
+
+    function render() {
+      button.innerHTML = (state.stopped ? ICON_PLAY + 'Play' : ICON_PAUSE + 'Pause');
+      button.setAttribute('aria-label', (state.stopped ? 'Play' : 'Pause') + ' the animation');
+    }
+    function sync() {
+      if (!player.ready) return;
+      if (state.stopped && !state.parked) { state.parked = true; player.seek(Number(player.getAttribute('data-poster')) || 0); }
+      if (state.visible && !state.stopped) { if (player.paused) player.play(); }
+      else if (!player.paused) player.pause();
+    }
+    button.addEventListener('click', function () { state.stopped = !state.stopped; render(); sync(); });
+    // Ready may come before or after this script runs: listen for it and check again shortly.
+    player.addEventListener('ready', function () { setTimeout(sync, 60); });
+    var tries = 0;
+    var wait = setInterval(function () { tries += 1; if (player.ready || tries > 40) { clearInterval(wait); sync(); } }, 250);
+    reduce.addEventListener('change', function (event) {
+      state.stopped = event.matches;
+      render();
+      sync();
+    });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        state.visible = entries[0].isIntersecting;
+        sync();
+      }, { threshold: 0.12 }).observe(holder);
+    } else {
+      state.visible = true;
+    }
+    render();
+  });
+})();
+</script>
+</body>
+</html>

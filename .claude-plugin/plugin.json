@@ -1,8 +1,8 @@
 {
   "name": "claudedockula",
   "displayName": "ClaudeDockula",
-  "version": "0.2.0",
-  "description": "Live panel tabs above the prompt that open docks of panels on the right or at the bottom. Built-in panels: Branch, Checks, Activity, Jira, GitGud (GitHub, GitLab, Bitbucket) and Slacker (opt-in); add your own.",
+  "version": "0.3.0",
+  "description": "Live panel tabs above the prompt that open docks of panels on the right or at the bottom. Built-in panels: Branch, Checks, Activity and GitGud (GitHub, GitLab, Bitbucket) are on by default; Jira and Slacker are off until you tick them in. Add your own.",
   "author": { "name": "SubSneaker" },
   "homepage": "https://github.com/SubSneaker/ClaudeDockula",
   "repository": "https://github.com/SubSneaker/ClaudeDockula",

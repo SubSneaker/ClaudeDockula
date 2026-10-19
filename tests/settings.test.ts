@@ -80,7 +80,7 @@ test('Jira servers are found by their tools, and the flavour by executeRead', ()
   expect(openCommands('u').map(argv => argv[0])).toEqual(['open', 'xdg-open', 'cmd'])
 })
 
-test('the Jira form saves a picked server and site; blank fields stay unsaved and a bad pattern is left out', () => {
+test('the Jira form saves a picked server and site; blank fields stay unsaved and the ticket pattern is kept', () => {
   const opened = buildJiraSetup([STANDARD, GATEWAY], {})
   expect(settingsFromSetup(opened, {})).toBeUndefined()
 
@@ -90,12 +90,12 @@ test('the Jira form saves a picked server and site; blank fields stay unsaved an
     settings: { jira: { server: 'atlassian', flavour: 'standard', boardServer: GATEWAY.name, site: SITE } }
   })
 
-  const typed = { ...picked, jql: ' project = X ', branchTemplate: 'feat/{key}-', ticketPattern: '([' }
+  const typed = { ...picked, jql: ' project = X ', branchTemplate: 'feat/{key}-' }
   expect(settingsFromSetup(typed, { ticketPattern: 'old' })?.settings).toEqual({
     jira: { server: 'atlassian', flavour: 'standard', boardServer: GATEWAY.name, site: SITE, jql: 'project = X' },
-    branchTemplate: 'feat/{key}-'
+    branchTemplate: 'feat/{key}-',
+    ticketPattern: 'old'
   })
-  expect(settingsFromSetup(typed, {})?.note).toContain('not valid')
 
   const two = withSites(withChosenServer(opened, 'atlassian'), [SITE, { cloudId: 'def', url: 'https://other.atlassian.net' }])
   expect(two.siteId).toBeUndefined()

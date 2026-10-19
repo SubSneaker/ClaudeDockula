@@ -151,7 +151,7 @@ function trackGitgud(on: On, seed: GitgudState): Tracked {
   return { latest: () => writes.at(-1) ?? seed, writes }
 }
 
-/** Ticks GitHub into the main dock: it is opt-in. */
+/** GitGud is in the main dock by default. */
 async function setUp(
   $: Engine,
   on: On,
@@ -167,7 +167,6 @@ async function setUp(
   on('fs.exists', () => ({ value: false }))
   const gitgud = trackGitgud(on, seed)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(60) })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   await pane.unmount()
 
   return { ...gitgud, clock }
@@ -472,7 +471,7 @@ test('a waiting ask counts down and one past 10 minutes shows as denied; a reloa
   expect(runs).toContainEqual(['rm', '-rf', workDir])
 })
 
-test('a session that never ticked GitHub in sets nothing up; ticking it in reads the files list', SLOW, async ($, on) => {
+test('a session with GitGud in the dock reads the files list', SLOW, async ($, on) => {
   mock.clock(on, { now: NOW })
   const link = { kind: 'review', title: 'Review #2071 · Add CSV export option', path: `${DOC_DIR}/github.com/acme__webapp/review-2071-20261016-0629.md`, createdAt: NOW - 60_000 }
   mock.store(on, { 'gitgud:settings': { isHaikuOn: false }, 'gitgud:docs': [link] })
@@ -487,10 +486,6 @@ test('a session that never ticked GitHub in sets nothing up; ticking it in reads
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(60) })
-  await pane.press({ key: 'dock-main-manage' })
-  expect(gitgud.writes.some(state => state.docs !== undefined)).toBe(false)
-
-  await pane.press({ key: 'dock-main-enable-1-gitgud' })
   await pane.press({ key: 'dock-main-manage' })
   expect(gitgud.latest().docs).toEqual([link])
   await pane.unmount()

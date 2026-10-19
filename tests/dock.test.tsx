@@ -260,13 +260,12 @@ test('a band tab opens the pane on its panel, the same tab closes it, and so doe
     expect((await band.find({ key: 'dock-tab-branch' }))?.text).toBe('🌿 …')
     expect(await band.find({ key: 'dock-tab-add' })).toBeDefined()
 
-    await band.press({ key: 'dock-tab-jira' })
+    await band.press({ key: 'dock-tab-gitgud' })
     expect(panes.has('claudedockula')).toBe(true)
-    expect(await pane.find({ key: 'dock-main-card-jira' })).toBeDefined()
-    expect(await pane.find({ key: 'jira-refresh' })).toBeDefined()
+    expect(await pane.find({ key: 'dock-main-card-gitgud' })).toBeDefined()
     expect(await pane.find({ type: 'Text', text: /failed:/ })).toBeUndefined()
 
-    await band.press({ key: 'dock-tab-jira' })
+    await band.press({ key: 'dock-tab-gitgud' })
     expect(panes.has('claudedockula')).toBe(false)
 
     await band.press({ key: 'dock-tab-branch' })
@@ -433,13 +432,13 @@ test('a reload runs session.start again and keeps the layout the session holds',
 
   await $.session.start(start)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
-  await pane.press({ key: 'dock-main-toggle-jira' })
+  await pane.press({ key: 'dock-main-toggle-gitgud' })
   await pane.press({ key: 'dock-main-manage' })
   await $.session.start(start)
 
   expect(await pane.find({ key: 'dock-main-enable-1-jira' })).toBeDefined()
   await pane.press({ key: 'dock-main-manage' })
-  expect(String((await pane.find({ key: 'dock-main-toggle-jira' }))?.props.label).trimEnd()).toBe('▸ 🎫 Jira · assigned to me')
+  expect(String((await pane.find({ key: 'dock-main-toggle-gitgud' }))?.props.label).trimEnd()).toBe('▸ 🐙 GitGud')
   await pane.unmount()
 })
 

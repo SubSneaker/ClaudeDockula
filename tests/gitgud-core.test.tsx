@@ -1,8 +1,13 @@
 import type { On, ProcessRunResult, RenderPropsOf } from 'claude-code'
-import { expect, mock, test } from 'claude-code/testing'
+import { expect, mock, test, type Engine } from 'claude-code/testing'
 
 import { PANELS } from '../hooks/panels'
 import { isAllowedArgv } from '../hooks/panels/gitgud/guard'
+
+/** The Branch card's own read-only worktree listing runs in the same session; the guard is GitHub's. */
+function isBranchWorktreeRead(argv: readonly string[]): boolean {
+  return argv[0] === 'git' && argv.includes('worktree') && argv.includes('list')
+}
 
 // The core wiring (gitgud.tsx) against a mocked `gh`: poll → state → band, alerts once, row actions, the read-only guard.
 
@@ -128,14 +133,21 @@ function startStore(on: On): void {
   mock.store(on, { 'panels:seen': seen, 'gitgud:settings': { isHaikuOn: false } })
 }
 
+/** The dock puts GitGud in its main view when the session starts. */
+async function startSession($: Engine, on: On): Promise<void> {
+  on('session.start', () => ({ cwd: '/repo' }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+}
+
 async function tickIn(pane: { press: (args: { key: string }) => Promise<unknown> }): Promise<void> {
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
 }
 
 test('ticked in, one poll fills the lists and the band; a new review request alerts once, never again', SLOW, async ($, on) => {
   mock.clock(on, { now: NOW })
   startStore(on)
   const gh = mockGh(on)
+  await startSession($, on)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps() })
   await tickIn(pane)
   expect(textOf(await pane.drawn(LIST))).toContain('#2086')
@@ -163,6 +175,7 @@ test('row actions fill the prompt or the clipboard; a checkout is only filled, a
   mock.clock(on, { now: NOW })
   startStore(on)
   const gh = mockGh(on)
+  await startSession($, on)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps() })
   await tickIn(pane)
   const id = `${REPO}#2086`
@@ -180,7 +193,7 @@ test('row actions fill the prompt or the clipboard; a checkout is only filled, a
   expect(textOf(await pane.drawn(LIST))).toContain("src/a.ts(3,1): error TS2322: Type 'x' is wrong.")
 
   expect(gh.argvs.length).toBeGreaterThan(3)
-  expect(gh.argvs.filter(argv => !isAllowedArgv(argv))).toEqual([])
+  expect(gh.argvs.filter(argv => !isAllowedArgv(argv) && !isBranchWorktreeRead(argv))).toEqual([])
   expect(gh.argvs.some(argv => argv.includes('checkout'))).toBe(false)
   expect(isAllowedArgv(['gh', 'pr', 'checkout', '2086'])).toBe(false)
   await pane.unmount()

@@ -7,11 +7,13 @@ import type {
   SlackerKind,
   SlackerMessage,
   SlackerSearch,
+  SlackerSource,
   SlackerState,
   SlackerThread
 } from '../../../types'
 import { cellWidth, fitEnd, fitStart } from '../../dock/ui'
-import { FEED_DAYS, filterCounts, formatAge, isUnseen, LIST_STEP, replyTarget, visibleItems } from './feed'
+import { filterCounts, formatAge, isUnseen, LIST_STEP, replyTarget, visibleItems } from './feed'
+import { daysOf, SOURCES, sourcesOf } from './settings'
 import { wrapText } from './text'
 
 // The feed as rows of segments, from the panel's state alone: the `Client` (./SlackerFeed.tsx) draws them one
@@ -75,7 +77,16 @@ export type FeedMessage =
 
 export type SlackerAction = 'add' | 'addthread' | 'reply' | 'thread' | 'copy' | 'close'
 export type SlackerDraftAction = 'send' | 'polish' | 'edit' | 'undo' | 'cancel' | 'dismiss'
-export type SlackerControl = 'search' | 'clear-query' | 'clear-search' | 'refresh' | 'allow' | 'watch' | 'seen' | 'more' | 'less'
+export type SlackerControl = 'search' | 'clear-query' | 'clear-search' | 'refresh' | 'allow' | 'seen' | 'more' | 'less'
+
+/** A change the settings view names: a watched word, a source, how often to refresh, how far back to read, Done. */
+export type SlackerSettingChange =
+  | { type: 'word-remove'; index: number }
+  | { type: 'word-add' }
+  | { type: 'source'; source: SlackerSource }
+  | { type: 'refresh'; seconds: number }
+  | { type: 'days'; days: number }
+  | { type: 'done' }
 
 /** What a key names: a control, a chip, an item, its `⋯`, an action on an item, or an answer to its reply. */
 export type SlackerKey =
@@ -84,8 +95,9 @@ export type SlackerKey =
   | { kind: 'item' | 'dots'; id: string }
   | { kind: 'action'; scope: 'act' | 'menu'; action: SlackerAction; id: string }
   | { kind: 'draft'; action: SlackerDraftAction; id: string }
+  | { kind: 'setting'; change: SlackerSettingChange }
 
-const CONTROLS = ['search', 'clear-query', 'clear-search', 'refresh', 'allow', 'watch', 'seen', 'more', 'less'] as const
+const CONTROLS = ['search', 'clear-query', 'clear-search', 'refresh', 'allow', 'seen', 'more', 'less'] as const
 const FILTERS = ['all', 'mention', 'dm', 'thread', 'keyword'] as const
 const ACTIONS = ['add', 'addthread', 'reply', 'thread', 'copy', 'close'] as const
 const DRAFT_ACTIONS = ['send', 'polish', 'edit', 'undo', 'cancel', 'dismiss'] as const
@@ -107,6 +119,26 @@ function oneOf<T extends string>(list: readonly T[], value: string | undefined):
 }
 
 /**
+ * A settings key without KEY_PREFIX, read back.
+ * @example
+ * // 'set-source-dm' → { type: 'source', source: 'dm' }; 'set-refresh-60' → { type: 'refresh', seconds: 60 }
+ */
+function parseSettingKey(key: string): SlackerSettingChange | undefined {
+  if (key === 'settings-done') return { type: 'done' }
+  if (key === 'set-word-add') return { type: 'word-add' }
+  const [, kind = '', value = ''] = /^set-(word-remove|source|refresh|days)-(\w+)$/.exec(key) ?? []
+  if (kind === 'word-remove' && /^\d+$/.test(value)) return { type: 'word-remove', index: Number(value) }
+  if (kind === 'source') {
+    const source = SOURCES.find(one => one === value)
+
+    return source ? { type: 'source', source } : undefined
+  }
+  if ((kind === 'refresh' || kind === 'days') && /^\d+$/.test(value)) return kind === 'refresh' ? { type: 'refresh', seconds: Number(value) } : { type: 'days', days: Number(value) }
+
+  return undefined
+}
+
+/**
  * The key a click, a right-click or a Button names, read back (a Button's without KEY_PREFIX).
  * @example
  * // 'act:reply:C1:1792.1' → { kind: 'action', scope: 'act', action: 'reply', id: 'C1:1792.1' }
@@ -116,6 +148,11 @@ export function parseSlackerKey(key: string | undefined): SlackerKey | undefined
   if (key === undefined) return undefined
   const control = oneOf(CONTROLS, key)
   if (control) return { kind: 'control', name: control }
+  if (key.startsWith('set')) {
+    const change = parseSettingKey(key)
+
+    return change ? { kind: 'setting', change } : undefined
+  }
   const [scope = '', action = '', ...rest] = key.split(':')
   if (scope === 'filter') {
     const filter = oneOf(FILTERS, action)
@@ -284,7 +321,9 @@ function chipsRow(context: DrawContext): FeedRow {
   const counts = filterCounts(items)
   const active = context.state.filter ?? 'all'
   const showKeywords = (context.state.keywords?.length ?? 0) > 0 || counts.keyword > 0
-  const chips = FILTERS.filter(filter => filter !== 'keyword' || showKeywords).flatMap((filter, index) => {
+  const on = sourcesOf(context.state.settings)
+  const isShown = (filter: SlackerFilter): boolean => (filter === 'keyword' ? showKeywords : filter === 'all' || on.some(source => source === filter))
+  const chips = FILTERS.filter(isShown).flatMap((filter, index) => {
     const label = ` ${CHIP_LABEL[filter]} ${counts[filter]} `
 
     return [...(index > 0 ? [seg(' ')] : []), seg(label, chipLook(filter === active, counts[filter]), `filter:${filter}`)]
@@ -462,7 +501,7 @@ function emptyRows(context: DrawContext): FeedRow[] {
   if (query !== '') return [note(`No matches for “${fitEnd(query, 20)}”.`), ...(context.isCanvas ? [note('⏎ searches all of Slack.')] : [])]
   if ((state.items?.length ?? 0) > 0) return [note('Nothing under this chip.')]
 
-  return [note(`Nothing for you in the last ${FEED_DAYS} days.`)]
+  return [note(`Nothing for you in the last ${daysOf(state.settings) === 1 ? 'day' : `${daysOf(state.settings)} days`}.`)]
 }
 
 function listRows(context: DrawContext): FeedRow[] {

@@ -23,7 +23,7 @@ export function describeGitFailure(stderr: string): string {
 
 /**
  * Reads `git status --porcelain=v2 --branch` output into the branch panel's status; the ticket key is the
- * match of `ticketPattern`, else the default pattern.
+ * match of `ticketPattern`, else the default pattern. Untracked paths are left out when `isUntrackedShown` is false.
  * @example
  * // before:
  * // # branch.oid a1b2c3d4e5f...
@@ -38,7 +38,7 @@ export function describeGitFailure(stderr: string): string {
  * //   staged: 1, modified: 1, untracked: 1, conflicted: 0, fileCount: 2,
  * //   files: [{ code: 'MM', path: 'src/a.ts' }, { code: '??', path: 'notes.md' }] }
  */
-export function parseGitStatus(stdout: string, ticketPattern?: string): BranchStatus {
+export function parseGitStatus(stdout: string, ticketPattern?: string, isUntrackedShown = true): BranchStatus {
   const status: BranchStatus = {
     staged: 0,
     modified: 0,
@@ -50,7 +50,7 @@ export function parseGitStatus(stdout: string, ticketPattern?: string): BranchSt
 
   for (const line of stdout.split('\n')) {
     if (line.startsWith('# ')) readHeaderLine(status, line.slice(2), ticketPattern)
-    else readEntryLine(status, line)
+    else readEntryLine(status, line, isUntrackedShown)
   }
   status.fileCount = status.files.length
 
@@ -78,11 +78,12 @@ function readHeaderLine(status: BranchStatus, header: string, ticketPattern?: st
 /** Fields before the path: `1` ordinary, `2` renamed or copied, `u` unmerged. */
 const FIELDS_BEFORE_PATH: Record<string, number> = { '1': 8, '2': 9, u: 10 }
 
-function readEntryLine(status: BranchStatus, line: string): void {
+function readEntryLine(status: BranchStatus, line: string, isUntrackedShown: boolean): void {
   const fields = line.split(' ')
   const kind = fields[0] ?? ''
 
   if (kind === '?') {
+    if (!isUntrackedShown) return
     status.untracked += 1
     status.files.push({ code: '??', path: unquoteGitPath(line.slice(2)) })
     return

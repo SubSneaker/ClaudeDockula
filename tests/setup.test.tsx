@@ -45,7 +45,7 @@ test('Checks: a repo with none saved asks, suggests from package.json, saves wha
   const runs: string[][] = []
   on('process.run', ($, e) => {
     if (e.argv.includes('--show-toplevel')) return { value: ran(0, '/repo\n') }
-    if (e.argv[0] !== 'git') runs.push([...e.argv])
+    if (e.argv[0] !== 'git' && e.argv[0] !== 'gh') runs.push([...e.argv])
 
     return { value: ran(0, '') }
   })
@@ -55,7 +55,7 @@ test('Checks: a repo with none saved asks, suggests from package.json, saves wha
   expect((await band.find({ key: 'dock-tab-checks' }))?.text).toBe('✅ set up')
 
   const ui = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
-  expect(await ui.find({ type: 'Text', text: 'Pick what to run in this repo (pnpm).' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /⚙ Checks settings/ })).toBeDefined()
   expect((await ui.find({ key: 'checks-pick-lint' }))?.props.label).toBe('☐ lint · pnpm run lint')
   expect(await ui.find({ key: 'checks-run-lint' })).toBeUndefined()
 
@@ -63,7 +63,7 @@ test('Checks: a repo with none saved asks, suggests from package.json, saves wha
   expect((await ui.find({ key: 'checks-pick-lint' }))?.props.label).toBe('☑ lint · pnpm run lint')
   await ui.input({ key: 'checks-add-2', text: 'Smoke: make smoke', kind: 'submit' })
   expect((await ui.find({ key: 'checks-pick-smoke' }))?.props.label).toBe('☑ smoke · make smoke')
-  await ui.press({ key: 'checks-save' })
+  await ui.press({ key: 'checks-settings-done' })
 
   expect(stored['settings:/repo']).toEqual({
     checks: [
@@ -81,7 +81,7 @@ test('Checks: a repo with none saved asks, suggests from package.json, saves wha
   expect(runs).toEqual([['make', 'smoke']])
 
   // ⚙ reopens the form with the saved checks ticked and the other suggestions beside them.
-  await ui.press({ key: 'checks-setup' })
+  await ui.press({ key: 'dock-main-settings-checks' })
   expect((await ui.find({ key: 'checks-pick-smoke' }))?.props.label).toBe('☑ smoke · make smoke')
   expect((await ui.find({ key: 'checks-pick-test' }))?.props.label).toBe('☐ test · pnpm run test')
   await ui.unmount()
@@ -118,6 +118,9 @@ test('Jira: no server says so and polls nothing; two servers ask once, then the 
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  await ui.press({ key: 'dock-main-manage' })
+  await ui.press({ key: 'dock-main-enable-1-jira' })
+  await ui.press({ key: 'dock-main-manage' })
   const band = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'AbovePrompt', props: bandProps(80) })
   expect(await ui.find({ type: 'Text', text: 'Connect an Atlassian MCP server to use this panel' })).toBeDefined()
   expect((await band.find({ key: 'dock-tab-jira' }))?.text).toBe('🎫 –')
@@ -137,11 +140,12 @@ test('Jira: no server says so and polls nothing; two servers ask once, then the 
   await ui.press({ key: 'jira-save' })
   expect(stored.settings).toEqual({ jira: { server: 'other', flavour: 'standard', site: { ...SITE, name: 'acme' } } })
   expect(calls).toContain('other:searchJiraIssuesUsingJql')
-  expect(await ui.find({ key: 'jira-setup' })).toBeDefined()
+  expect(await ui.find({ key: 'jira-save' })).toBeUndefined()
+  expect(await ui.find({ key: 'jira-setup' })).toBeUndefined()
   expect(await ui.find({ key: 'jira-setup-server-0' })).toBeUndefined()
 
   // ⚙ reopens it filled in, with the query and branch fields.
-  await ui.press({ key: 'jira-setup' })
+  await ui.press({ key: 'dock-main-settings-jira' })
   await ui.input({ key: 'jira-setup-field-jql', text: 'project = ABC', kind: 'change' })
   await ui.input({ key: 'jira-setup-field-branchTemplate', text: 'feat/{key}-', kind: 'change' })
   await ui.press({ key: 'jira-save' })

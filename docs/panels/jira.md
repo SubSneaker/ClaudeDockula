@@ -2,6 +2,8 @@
 
 The Jira panel (card title `Jira · assigned to me`) shows your Jira tickets as a board, in the lanes of your team's board, with the ticket of your current branch marked. You can move tickets between lanes, start a branch for one, or add one to the prompt.
 
+Jira is off by default. Add it in ⚙ Manage.
+
 ## What it needs
 
 An MCP server with Jira tools. An MCP server is a connector that gives Claude extra tools; you connect them in `/mcp`. The panel uses any connected server that offers both `getJiraIssue` and `searchJiraIssuesUsingJql`, such as the claude.ai Atlassian connector.
@@ -12,9 +14,9 @@ The board's columns come from a server that also offers `executeRead`. Without o
 
 When the session starts, the panel looks for such servers:
 
-- None: the card says `Connect an Atlassian MCP server to use this panel`. Connect one in `/mcp`, then press **↻ Refresh**.
+- None: the card says `Connect an Atlassian MCP server to use this panel`. Connect one in `/mcp`, then press `↻ Refresh`.
 - One server whose account reaches one Jira site: the panel saves it at once. There is nothing to pick.
-- Otherwise the card shows a form. `Pick the Atlassian MCP server to read Jira through.` lists the servers when there are several, and `Which site?` lists the sites when there are several. Press one (● marks your choice), then **Save**.
+- Otherwise the card shows a form. `Pick the Atlassian MCP server to read Jira through.` lists the servers when there are several, and `Which site?` lists the sites when there are several. Press one (● marks your choice), then `Save`.
 
 Notes the card may show meanwhile: `Reading settings…`, `Looking for an Atlassian MCP server…`, `Looking for sites…`, `No Jira site found for that server.`, `Pick a server and a site first.`
 
@@ -81,15 +83,15 @@ An open ticket shows, under its row:
 
 1. Drag the ticket onto another lane. The lane is highlighted and shows `← drop here`. Or pick a lane from `Move to ▸`.
 2. A question appears under the ticket: `Move to DONE (COMPLETE)?  [Move]  [Cancel]`. The status in brackets is the one Jira will set, when its name differs from the lane's.
-3. **Move** makes the change. The panel asks Jira which moves (transitions) the ticket can make now and takes the one into that lane. `Moving to DONE…` shows under the ticket until the board reloads.
+3. `Move` makes the change. The panel asks Jira which moves (transitions) the ticket can make now and takes the one into that lane. `Moving to DONE…` shows under the ticket until the board reloads.
 
 One move runs at a time.
 
 ### Buttons under the board
 
-- **↻ Refresh**: read the tickets, the branch's ticket and the board again now. Before setup it looks for a server again.
-- **↗ Open ABC-101**: open the branch's ticket in your browser. Shown when the branch has a ticket.
-- **⚙**: the settings form.
+- `↻ Refresh`: read the tickets, the branch's ticket and the board again now. Before setup it looks for a server again.
+- `↗ Open ABC-101`: open the branch's ticket in your browser. Shown when the branch has a ticket.
+- The settings are in `⚙` in the card's header, not under the board.
 
 ### Keys
 
@@ -122,7 +124,7 @@ The band is the row of tabs above the prompt. This tab shows the status of the b
 
 - The branch's ticket key is checked every minute. When it changes, that ticket is read.
 - The ticket list is read again every 2 minutes while the card is shown, and when you open the panel (its band tab, or its card's ▸ / ▾) and the list is older than 2 minutes.
-- Everything is read again after a move, after you save the settings, and when you press **↻ Refresh**.
+- Everything is read again after a move, after you save the settings, and when you press `↻ Refresh`.
 
 ## What it reads and writes
 
@@ -135,21 +137,22 @@ It reads, through the server you chose:
 
 It also runs `git --no-optional-locks rev-parse --abbrev-ref HEAD` to read the branch name.
 
-It writes one thing: moving a ticket (`transitionJiraIssue`). It does this only after you press **Move** in the question under the ticket.
+It writes one thing: moving a ticket (`transitionJiraIssue`). It does this only after you press `Move` in the question under the ticket.
 
-**New branch** never runs git itself. It fills the prompt box, and you decide whether to send it.
+`New branch` never runs git itself. It fills the prompt box, and you decide whether to send it.
 
 ## Settings
 
-**⚙** opens the form with what is saved:
+`⚙` in the card's header opens `⚙ Jira settings` with what is saved. Press it again to close the form once the panel is set up.
 
-- The server and the site, when there is a choice.
-- `Tickets to list (JQL)`: your own query. Leave it empty for the default.
-- `New branch name ({key} is the ticket)`: for example `feature/{key}-` gives `! git switch -c feature/ABC-101-`. The default is `{key}/`.
-- `Ticket pattern in a branch name`: a regular expression that finds a ticket key. The default is `[A-Z][A-Z0-9]+-\d+`. A pattern that does not work is not saved, and the form says `That ticket pattern is not valid: the default is used.`
-- **Save** and **Cancel**.
+- `Server` and `Site`, when there is a choice.
+- `Tickets (JQL)`: your own query. Leave it empty for the default.
+- `Branch name`: for example `feature/{key}-` gives `! git switch -c feature/ABC-101-`. The default is `{key}/`.
+- `List refresh`: how often the list reloads, 1, 2 or 5 min. The default is 2 min. Saving restarts the timer.
+- A line `Ticket pattern: set in 🌿 Branch ⚙`. The pattern is edited in [Branch](branch.md)'s settings, and Jira reads it from there.
+- `Save` and `Cancel`. Changing the server or site resets the board, so nothing is saved until you press `Save`. Save keeps a ticket pattern that Branch saved in the meantime.
 
-These settings apply to every repo and session. The [Branch](branch.md) and [GitGud](gitgud.md) panels use the same ticket pattern. The board you pick is kept per project. All of it is in ClaudeDockula's store, under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`).
+These settings apply to every repo and session. The [Branch](branch.md) and [GitGud](gitgud.md) panels use the same ticket pattern. The refresh choice is kept in `jira:settings`. The board you pick is kept per project. All of it is in ClaudeDockula's store, under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`).
 
 ## Permissions
 
@@ -173,7 +176,7 @@ Notices are short lines the band shows above its tabs. Errors stay until you clo
 
 ## Limits
 
-- Drag, right-click and the keys work on the terminal and the desktop app. On VS Code and mobile the board is drawn with buttons: a button per lane opens or closes it, each ticket has a button that opens it and a `⋯` button for its menu, and `Move to ▸` and the question's **Move** and **Cancel** are buttons too. There is no drag.
+- Drag, right-click and the keys work on the terminal and the desktop app. On VS Code and mobile the board is drawn with buttons: a button per lane opens or closes it, each ticket has a button that opens it and a `⋯` button for its menu, and `Move to ▸` and the question's `Move` and `Cancel` are buttons too. There is no drag.
 - The board picker is a drop-down on VS Code and a list of buttons on mobile.
 - On a surface with no text fields, such as mobile, the settings form says `Edit the query and branch names from the terminal.`
 - The list holds at most 50 tickets.

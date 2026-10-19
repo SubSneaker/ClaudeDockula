@@ -98,6 +98,7 @@ import {
 } from './notices'
 import { readPackPanels } from './packs'
 import { SEEN_STORE_KEY, panelNews, readSeen, renameSeen } from './panelNews'
+import { askReset, dropConfirms, hasConfirm, keysToClear, placedOptIns, resetLayout } from './reset'
 import { EMPTY_DRAFT, EMPTY_FORM, buildRemovePanelPrompt, listMcpServerNames } from './prompts'
 import { drawMore, drawNote, type DockElements } from './ui'
 import { drawUserPanel, summarizeUserPanel, userPanelsOf } from './user'
@@ -131,6 +132,7 @@ const noticesAtom = atom({ plugin: 'claudedockula', key: 'notices' } as const, N
 const scrollAtom = atom({ plugin: 'claudedockula', key: 'dockScroll' } as const, {})
 const measureAtom = atom({ plugin: 'claudedockula', key: 'dockMeasure' } as const, {})
 const userPanelsAtom = atom({ plugin: 'claudedockula', key: 'userPanels' } as const, [])
+const userRevisionAtom = atom({ plugin: 'claudedockula', key: 'userRevision' } as const, 0)
 
 /** The built-in panels, then the ones panel packs list through `$.dockula.panels`. */
 async function registryOf($: EngineInterface): Promise<DockPanel[]> {
@@ -368,7 +370,52 @@ async function runDockPress($: EngineInterface, press: DockPress): Promise<void>
       await changeOwnDock($, dockId, addView)
       await resetScroll($, dockId)
       return
+    case 'reset-layout':
+    case 'reset-all':
+      await changeLayout($, layout => askReset(layout, dockId, press.action === 'reset-layout' ? 'reset-layout' : 'reset-all'))
+      return
+    case 'reset-no':
+      await changeLayout($, dropConfirms)
+      return
+    case 'reset-layout-yes':
+      await runResetLayout($)
+      return
+    case 'reset-all-yes':
+      await runResetAll($)
+      return
   }
+}
+
+/** Every dock and panel as a new install has them; the scroll and measured heights go, as dock ids are reused. */
+async function runResetLayout($: EngineInterface): Promise<void> {
+  const placed = placedOptIns(await readDocks($), OPT_IN_IDS)
+  const ids = await panelIdsOf($)
+  await changeDocks($, () => resetLayout(ids, BUILT_IN_IDS, OPT_IN_IDS))
+  await update($, scrollAtom, () => ({}))
+  await update($, measureAtom, () => ({}))
+  if (placed.length === 0) return
+  const at = await $.clock.now()
+  const title = 'Layout reset. Tick 🎫 Jira or 💬 Slacker in ⚙ Manage to bring them back.'
+  await update($, noticesAtom, list => pushNotice(list, { tone: 'info', title, topic: 'reset', at }))
+}
+
+/** The layout reset, then every stored key but the kept ones; each panel clears its own memory in its own hook. */
+async function runResetAll($: EngineInterface): Promise<void> {
+  const ids = await panelIdsOf($)
+  await changeDocks($, () => resetLayout(ids, BUILT_IN_IDS, OPT_IN_IDS))
+  await update($, scrollAtom, () => ({}))
+  await update($, measureAtom, () => ({}))
+  const keys = await $.store.keys().catch(() => [])
+  for (const key of keysToClear(keys)) await $.store.delete(key).catch(() => undefined)
+  const at = await $.clock.now()
+  const title = 'All settings reset. Each panel asks again when it needs something.'
+  await update($, noticesAtom, list => pushNotice(list, { tone: 'info', title, topic: 'reset', at }))
+}
+
+/** Any other press closes an open reset question. */
+async function dropStaleConfirm($: EngineInterface, press: DockPress | PanelPress | ViewPress | ViewActionPress): Promise<void> {
+  if (press.action.startsWith('reset-')) return
+  if (hasConfirm(await readDocks($))) await changeLayout($, dropConfirms)
 }
 
 /** A control of one view, named by its key: a view no longer in the dock changes nothing. */
@@ -388,7 +435,7 @@ async function runViewActionPress($: EngineInterface, press: ViewActionPress): P
  * A control on a panel's card, Manage row or Layout row in one dock; Remove asks Claude to delete one of the
  * person's own panels.
  */
-async function runPanelPress($: EngineInterface, press: PanelPress): Promise<void> {
+async function runPanelPress($: EngineInterface, press: PanelPress, surface: RenderSurface): Promise<void> {
   const { action, dockId, panelId, viewId } = press
   const width = widthOfAction(action)
   if (width !== undefined && viewId !== undefined) {
@@ -402,7 +449,15 @@ async function runPanelPress($: EngineInterface, press: PanelPress): Promise<voi
   } else if (action === 'settings') {
     // The panel's own hook opens its settings; a minimized card opens so they show.
     await changeOwnDock($, dockId, dock => (activeView(dock).minimized.includes(panelId) ? changePanel(dock, 'toggle', panelId) : dock))
+    const panel = (await registryOf($)).find(one => one.id === panelId)
+    if (panel && !panel.isBuiltIn) await askPackSettings($, panelId, dockId, surface)
   }
+}
+
+/** A pack's panel is told its ⚙ was pressed; when it answers handled, its card redraws. */
+async function askPackSettings($: EngineInterface, panel: string, dockId: string, surface: RenderSurface): Promise<void> {
+  const answer = await $.dockula.input({ panel, dockId, surface, event: { type: 'settings', x: 0, y: 0 } }).catch(() => ({ handled: false }))
+  if (answer.handled === true) await update($, userRevisionAtom, revision => revision + 1)
 }
 
 /** A view's tab: the dock shows that view. */
@@ -764,7 +819,8 @@ export function registerDockHooks(on: On): void {
   // `-<viewId>` for a view's tab.
   on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-/ }, async ($, e) => {
     const press = parseDockKey(e.element)
-    if (press && 'panelId' in press) await runPanelPress($, press)
+    if (press) await dropStaleConfirm($, press)
+    if (press && 'panelId' in press) await runPanelPress($, press, e.surface)
     else if (press && 'viewId' in press && press.action === 'view') await runViewPress($, press)
     else if (press && 'viewId' in press) await runViewActionPress($, press)
     else if (press) await runDockPress($, press)

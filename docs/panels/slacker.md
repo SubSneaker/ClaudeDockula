@@ -14,18 +14,18 @@ When the connector is not connected, the card says `Slack isn't connected in thi
 
 ## The feed
 
-The feed covers the last 7 days:
+The feed covers the last 7 days, or the number of days you pick in ⚙:
 
 - Messages that @mention you.
 - Direct messages from people (bots are left out), in one-to-one and group DMs.
 - Replies in threads you are part of.
-- Messages with one of your watched words (see **★ Watch** below).
+- Messages with one of your watched words (set them in ⚙, see Settings below).
 
 Your own messages are left out. A DM conversation or a thread shows as one row, its newest message, with `×N` for how many messages it holds. Each search returns at most 20 messages.
 
 ### The search box and the chips
 
-- The top row is the search box, `🔍 Search Slack…`. See **Searching**.
+- The top row is the search box, `🔍 Search Slack…`. See Searching.
 - Under it, the chips filter the feed: `All`, `@` (mentions), `DM`, `🧵` (threads) and `★` (watched words, shown when you watch words), each with its count. The chosen chip is highlighted; a chip with nothing in it is dim. Click a chip to choose it.
 - `● 3 new` at the right end counts the rows that came since you last looked.
 
@@ -49,7 +49,7 @@ The feed shows 5 rows at first. `+N more` shows 5 more, and `Show less` goes bac
 Click a row to open it. It shows the whole message (up to 8 lines), then a row of actions:
 
 - `+ Prompt`: add the message to the prompt box. When its thread is shown, this reads `+ Thread to prompt` and adds the whole thread.
-- `↩ Reply`: write a reply (see **Replying**).
+- `↩ Reply`: write a reply (see Replying).
 - `🧵 Thread`: show or hide the thread under the message. For a direct message outside a thread it reads `💬 Chat` and shows the last messages of the conversation. `▴` marks it while shown.
 - `🔗 Link`: copy the message's link.
 - `✕`: close the row.
@@ -95,18 +95,18 @@ On VS Code and mobile, the search box is a button. It asks `What should Slacker 
 1. Press `↩ Reply` (or `↩ Reply…` in the menu). A question asks `Reply in thread · #dev-app, to Grace: what should it say?` (for a DM outside a thread, `Message to <name>`). Type the reply, or pick `Let AI draft it` or `Cancel`.
 2. The draft shows under the message, with where it will go: `┄ Reply in thread · #dev-app ┄`. It is not sent yet.
 3. Choose:
-   - **Send** posts it. This is the only thing Slacker ever posts, and only when you press it.
-   - **✦ Polish** has Claude Haiku (a small, fast Claude model) rewrite the draft to be clear and short, in the same language and voice, or write one when the draft is empty. It shows `✦ Polishing…` meanwhile. Nothing is sent.
-   - **✎ Edit** asks `What should the reply say instead?` (with the current text) and offers `Keep it` and `Cancel reply`.
-   - **↶ Undo** goes back to the text before the last polish or edit.
-   - **✕ Cancel** drops the draft.
+   - `Send` posts it. This is the only thing Slacker ever posts, and only when you press it.
+   - `✦ Polish` has Claude Haiku (a small, fast Claude model) rewrite the draft to be clear and short, in the same language and voice, or write one when the draft is empty. It shows `✦ Polishing…` meanwhile. Nothing is sent.
+   - `✎ Edit` asks `What should the reply say instead?` (with the current text) and offers `Keep it` and `Cancel reply`.
+   - `↶ Undo` goes back to the text before the last polish or edit.
+   - `✕ Cancel` drops the draft.
 4. After sending: `Sending…`, then `✓ Sent`; its `✕` clears the line. The thread, when shown, is read again.
 
 Where a reply goes: into the message's thread when it is in one; into the conversation for a direct message outside a thread; otherwise it starts a thread on the message.
 
 Polish and `Let AI draft it` send the draft, the message you answer and up to 12 messages of its conversation to Claude Haiku.
 
-When sending fails, the draft stays with **↻ Try again** and the reason:
+When sending fails, the draft stays with `↻ Try again` and the reason:
 
 - `Not sent: <why>`
 - `May have been sent: check Slack before trying again`: the call failed in a way that does not tell whether Slack posted it.
@@ -116,10 +116,9 @@ A failed polish shows `Polish failed: <why>`.
 
 ## Buttons under the feed
 
-- **↻ Refresh**: read Slack again now. It also runs an open search again.
-- **✓ Seen**: mark everything as seen. The `●` marks and the band count clear.
-- **★ Watch** (or **★ Watching 2**): set up to 3 words to watch, separated by commas. The question offers `Watch “<your name>”` when you watch nothing yet, and `Keep these` or `Clear watchlist` when you do.
-- **🔓 Allow Slack**: shown when Claude Code refused Slacker's calls. See **Permissions**.
+- `↻ Refresh`: read Slack again now. It also runs an open search again.
+- `✓ Seen`: mark everything as seen. The `●` marks and the band count clear.
+- `🔓 Allow Slack`: shown when Claude Code refused Slacker's calls. See Permissions.
 
 ## The band tab
 
@@ -129,14 +128,14 @@ What counts as looking:
 
 - Opening the panel (its band tab, or its card's ▸ / ▾) sets the count to 0. The `●` marks then show what came since your previous look.
 - Anything you do in the card also sets the count to 0, but keeps the `●` marks.
-- **✓ Seen** clears both.
+- `✓ Seen` clears both.
 
 ## When it refreshes
 
-- Every 30 seconds while the panel is in a dock view.
-- When you open the panel, when you tick it in ⚙ Manage, when you press **↻ Refresh**, and after you change your watched words.
+- Every 30 seconds while the panel is in a dock view, or the pace you pick in ⚙ (1 min or 5 min).
+- When you open the panel, when you tick it in ⚙ Manage, when you press `↻ Refresh`, and after you change your watched words, sources or look back.
 
-While Claude Code refuses its calls, the 30-second refresh waits until you press **↻ Refresh** or open the panel.
+While Claude Code refuses its calls, the timed refresh waits until you press `↻ Refresh` or open the panel.
 
 ## What it reads and writes
 
@@ -146,17 +145,27 @@ It reads through the claude.ai Slack connector:
 - `slack_search_public_and_private`: the feed and your searches.
 - `slack_read_thread` and `slack_read_channel`: a thread, or a DM's last messages.
 
-It writes one thing: your reply, through `slack_send_message`, once, when you press **Send**.
+It writes one thing: your reply, through `slack_send_message`, once, when you press `Send`.
 
 Copying a link uses the clipboard of the device you pressed on.
 
 ## Settings
 
+`⚙` in the card's header shows `⚙ Slacker settings · for every session` (it opens the card first when it is minimized). Each change saves at once. `Done` closes it.
+
+- `Watched words`: up to 3 words, each with `✕` to remove it, and `➕ Watch a word`. The question offers `Watch “<your name>”`. Separate several words with commas.
+- `Sources`: `Mentions`, `DMs` and `Thread replies`, all on by default. A source you turn off is not read, its rows leave the feed, and its chip goes. One source always stays on.
+- `Refresh`: `30 s` (the default), `1 min` or `5 min`.
+- `Look back`: `7 days` (the default), `3 days` or `1 day`.
+
 Slacker keeps, in ClaudeDockula's store (`plugins/store/` in your Claude folder, `$CLAUDE_CONFIG_DIR` or else `~/.claude`):
 
-- your watched words (change them with **★ Watch**),
+- your watched words,
+- the sources, refresh and look back,
 - when you last looked,
 - your Slack user id and name.
+
+`Reset all settings` in ⚙ Manage clears these, and Slacker starts again with the defaults. The feed, a reply you are writing and an open search stay.
 
 ## Permissions
 
@@ -167,12 +176,12 @@ Claude Code blocked slack_search_public_and_private (auto mode could not review 
 Allow it in /permissions: mcp__claude_ai_Slack__slack_search_public_and_private
 ```
 
-**🔓 Allow Slack** puts a request in the empty prompt box, for you to read and send: it asks Claude to add allow rules for the four reading tools above to your user settings, and then to ask you whether to also allow `slack_send_message`. It does not send anything by itself. If the prompt box has text, the notice `Clear the prompt box first` shows instead.
+`🔓 Allow Slack` puts a request in the empty prompt box, for you to read and send: it asks Claude to add allow rules for the four reading tools above to your user settings, and then to ask you whether to also allow `slack_send_message`. It does not send anything by itself. If the prompt box has text, the notice `Clear the prompt box first` shows instead.
 
 ## Messages on the card
 
 - `Reading your Slack…`, `Not read yet.`
-- `Nothing for you in the last 7 days.`, `Nothing under this chip.`
+- `Nothing for you in the last 7 days.` (the days follow your Look back setting), `Nothing under this chip.`
 - Errors from the first read show in red. Errors from a later read show in yellow with `⚠`, and the last feed stays.
 - `Too much to draw here: show less` when the open rows are too long to draw.
 

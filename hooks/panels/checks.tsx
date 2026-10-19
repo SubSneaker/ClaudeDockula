@@ -1,8 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { Elements, EngineInterface, On, RenderSurface, ThemeKey, Timer } from 'claude-code'
 
-import type { CheckRun, CheckSetting, ChecksSetup, ChecksState } from '../../types'
+import type { CheckRun, ChecksSettings, ChecksSetup, ChecksState } from '../../types'
 import { NO_NOTICES, dropTopics, pushNotice, type NewNotice } from '../dock/notices'
+import { drawChoiceRow, drawSettingRow, drawSettingsView, drawToggle, SETTINGS_LABEL_CELLS } from '../dock/settingsView'
 import { drawActions, drawNote, fitEnd, TONE, type DockElements } from '../dock/ui'
 import { SET_UP_SUMMARY, parseRepoSettings, repoSettingsKey } from '../settings'
 import {
@@ -24,6 +25,14 @@ import {
   suggestChecks,
   toggleSetupCheck
 } from './checks/setup'
+import {
+  CHECKS_SETTINGS_KEY,
+  DEFAULT_TIME_LIMIT_SECONDS,
+  TIME_LIMIT_MINUTES,
+  isNoticeOn,
+  parseChecksSettings,
+  timeLimitMs
+} from './checks/settings'
 import { formatDuration, summarizeCheckOutput, type CheckSummary } from './checks/summary'
 import type { DockPanel } from './contract'
 
@@ -35,12 +44,11 @@ const GIT_TIMEOUT_MS = 5_000
 const RUN_ALL_KEY = 'checks-run-all'
 const RUN_KEY_PREFIX = 'checks-run-'
 const TOGGLE_KEY_PREFIX = 'checks-toggle-'
-const SETUP_KEY = 'checks-setup'
 const PICK_KEY_PREFIX = 'checks-pick-'
 const ADD_KEY_PREFIX = 'checks-add-'
-const SAVE_KEY = 'checks-save'
-const CANCEL_KEY = 'checks-cancel'
-const TIMEOUT_MS = 10 * 60 * 1000
+const DONE_KEY = 'checks-settings-done'
+const TIMEOUT_KEY_PREFIX = 'checks-set-timeout-'
+const NOTIFY_KEY_PREFIX = 'checks-set-notify-'
 const TICK_MS = 5000
 const PLAIN_OUTPUT_ENV = { NO_COLOR: '1', FORCE_COLOR: '0' }
 
@@ -70,10 +78,22 @@ function checkTopic(check: CheckDefinition): string {
   return `check-${check.id}`
 }
 
+/** The panel's settings, read from the store each time so another session's change counts here too. */
+async function readChecksSettings($: EngineInterface): Promise<ChecksSettings> {
+  return parseChecksSettings(await $.store.get(CHECKS_SETTINGS_KEY).catch(() => undefined))
+}
+
+async function saveChecksSettings($: EngineInterface, change: (settings: ChecksSettings) => ChecksSettings): Promise<void> {
+  const settings = change(await readChecksSettings($))
+  await $.store.set(CHECKS_SETTINGS_KEY, settings).catch(() => undefined)
+  await update($, checksState, value => ({ ...value, settings }))
+}
+
 async function summarizeRun($: EngineInterface, check: CheckDefinition): Promise<CheckSummary> {
   try {
+    const limit = timeLimitMs(await readChecksSettings($))
     const [output, cwd] = await Promise.all([
-      $.process.run(check.argv, { timeoutMs: TIMEOUT_MS, env: PLAIN_OUTPUT_ENV }),
+      $.process.run(check.argv, { timeoutMs: limit, env: PLAIN_OUTPUT_ENV }),
       $.session.cwd()
     ])
 
@@ -109,7 +129,7 @@ async function runCheck($: EngineInterface, check: CheckDefinition, isInRunAll =
         lines: summary.lines
       })
     )
-    if (!isInRunAll) {
+    if (!isInRunAll && isNoticeOn(await readChecksSettings($))) {
       const detail = summary.lines.join('\n')
       await notify($, {
         tone: summary.isPassed ? 'success' : 'error',
@@ -188,11 +208,13 @@ async function loadChecks($: EngineInterface): Promise<void> {
   if ((await read($, checksState)).isLoaded) return
   const root = await readRepoRoot($)
   const saved = parseRepoSettings(await $.store.get(repoSettingsKey(root)).catch(() => undefined))
-  await update($, checksState, value => ({ ...value, isLoaded: true, repo: root, checks: saved.checks }))
+  const settings = await readChecksSettings($)
+  await update($, checksState, value => ({ ...value, isLoaded: true, repo: root, checks: saved.checks, settings }))
   if (!saved.checks) await openSetup($)
 }
 
-async function saveChecks($: EngineInterface): Promise<void> {
+/** Saves the ticked checks for the repo; Done also closes the view. */
+async function saveChecks($: EngineInterface, isClosing: boolean): Promise<void> {
   const { setup, repo } = await read($, checksState)
   if (!setup || repo === undefined) return
   const checks = pickedChecks(setup)
@@ -200,12 +222,41 @@ async function saveChecks($: EngineInterface): Promise<void> {
   await update($, checksState, value => {
     const { setup: _setup, ...rest } = value
 
-    return { ...rest, checks }
+    return isClosing ? { ...rest, checks } : { ...value, checks }
   })
 }
 
+/** A tick or an added command: saved at once once the repo is set up; before that Done saves. */
 async function changeSetup($: EngineInterface, change: (setup: ChecksSetup) => ChecksSetup): Promise<void> {
   await update($, checksState, value => (value.setup ? { ...value, setup: change(value.setup) } : value))
+  if ((await read($, checksState)).checks !== undefined) await saveChecks($, false)
+}
+
+/** ⚙ in the card's header: opens the settings, or closes them once the repo is set up. */
+async function toggleChecksSettings($: EngineInterface): Promise<void> {
+  await loadChecks($)
+  const state = await read($, checksState)
+  if (!state.setup) {
+    await openSetup($)
+
+    return
+  }
+  if (state.checks === undefined) return
+  await update($, checksState, value => {
+    const { setup: _setup, ...rest } = value
+
+    return rest
+  })
+}
+
+/** Reset all: back to a repo that was never set up, so the first-run view asks again. Runs in flight keep going. */
+async function forgetChecks($: EngineInterface): Promise<void> {
+  await update($, checksState, value => {
+    const { isLoaded: _loaded, checks: _checks, setup: _setup, settings: _settings, ...rest } = value
+
+    return rest
+  })
+  await loadChecks($)
 }
 
 function startTicker($: EngineInterface): void {
@@ -263,10 +314,18 @@ export function registerChecksHooks(on: On): void {
     return { element: e.element }
   })
 
-  on('ui.press', { plugin: 'claudedockula', element: SETUP_KEY }, async ($, e) => {
-    await openSetup($)
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-checks$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await toggleChecksSettings($)
 
-    return { element: e.element }
+    return pressed
+  })
+
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-reset-all-yes$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await forgetChecks($)
+
+    return pressed
   })
 
   on('ui.press', { plugin: 'claudedockula', element: /^checks-pick-/ }, async ($, e) => {
@@ -282,18 +341,22 @@ export function registerChecksHooks(on: On): void {
     return { element: e.element, value: e.value }
   })
 
-  on('ui.press', { plugin: 'claudedockula', element: SAVE_KEY }, async ($, e) => {
-    await saveChecks($)
+  on('ui.press', { plugin: 'claudedockula', element: /^checks-set-timeout-(5|10)$/ }, async ($, e) => {
+    const minutes = Number(e.element.slice(TIMEOUT_KEY_PREFIX.length))
+    await saveChecksSettings($, settings => ({ ...settings, timeLimitSeconds: minutes * 60 }))
 
     return { element: e.element }
   })
 
-  on('ui.press', { plugin: 'claudedockula', element: CANCEL_KEY }, async ($, e) => {
-    await update($, checksState, value => {
-      const { setup: _setup, ...rest } = value
+  on('ui.press', { plugin: 'claudedockula', element: /^checks-set-notify-(on|off)$/ }, async ($, e) => {
+    const isOn = e.element.slice(NOTIFY_KEY_PREFIX.length) === 'on'
+    await saveChecksSettings($, settings => ({ ...settings, isNoticeOnFinish: isOn }))
 
-      return rest
-    })
+    return { element: e.element }
+  })
+
+  on('ui.press', { plugin: 'claudedockula', element: DONE_KEY }, async ($, e) => {
+    await saveChecks($, true)
 
     return { element: e.element }
   })
@@ -389,78 +452,86 @@ function drawCheck(ui: DockElements, check: CheckDefinition, state: ChecksState)
   )
 }
 
-function drawSetup(ui: Elements[RenderSurface], setup: ChecksSetup, isSaved: boolean, columns: number): JSX.Element {
+/** The ⚙ view: this repo's checks, a command to add, then the settings every repo shares. */
+function drawChecksSettings(ui: Elements[RenderSurface], state: ChecksState, setup: ChecksSetup, columns: number): JSX.Element {
   const { Box, Button } = ui
-  const intro = setup.manager ? `Pick what to run in this repo (${setup.manager}).` : 'Add what to run in this repo.'
-  let field: JSX.Element | null = null
-  if ('Input' in ui) {
-    const { Input } = ui
-    field = (
-      <Box marginTop={1}>
-        <Input
-          key={`${ADD_KEY_PREFIX}${setup.options.length}`}
-          label="Add a command "
-          placeholder="name: command"
-          submitLabel="add"
-          onSubmit={() => undefined}
-        />
+  const optionCells = Math.max(10, columns - SETTINGS_LABEL_CELLS - 2)
+  const repoName = state.repo?.split('/').filter(part => part !== '').at(-1)
+  const limit = state.settings?.timeLimitSeconds ?? DEFAULT_TIME_LIMIT_SECONDS
+  const isNoticeShown = isNoticeOn(state.settings)
+  const rows: JSX.Element[] = [
+    drawSettingRow(
+      ui,
+      'Checks',
+      <Box flexDirection="column">
+        {setup.options.length === 0 && drawNote(ui, setup.manager ? `No scripts found (${setup.manager}).` : 'None yet.')}
+        {setup.options.map(option =>
+          drawToggle(ui, `${PICK_KEY_PREFIX}${option.id}`, fitEnd(describeCheckOption(option), optionCells), setup.picked.includes(option.id))
+        )}
       </Box>
     )
-  } else if (setup.options.length === 0) {
-    field = <Box marginTop={1}>{drawNote(ui, 'Add commands from the terminal.')}</Box>
-  }
-  const buttons = [
-    <Button key={SAVE_KEY} variant="primary" label="Save" onPress={() => undefined} />,
-    ...(isSaved ? [<Button key={CANCEL_KEY} plain dimColor label="Cancel" onPress={() => undefined} />] : [])
   ]
-
-  return (
-    <Box flexDirection="column" width={columns}>
-      {drawNote(ui, intro)}
-      {setup.options.length > 0 && (
-        <Box flexDirection="column" marginTop={1}>
-          {setup.options.map(option => (
-            <Button
-              key={`${PICK_KEY_PREFIX}${option.id}`}
-              plain
-              label={fitEnd(`${setup.picked.includes(option.id) ? '☑' : '☐'} ${describeCheckOption(option)}`, columns)}
-              onPress={() => undefined}
-            />
-          ))}
-        </Box>
-      )}
-      {field}
-      {drawActions(ui, buttons)}
-    </Box>
+  if ('Input' in ui) {
+    const { Input } = ui
+    rows.push(
+      drawSettingRow(
+        ui,
+        'Add a command',
+        <Input key={`${ADD_KEY_PREFIX}${setup.options.length}`} placeholder="name: command" submitLabel="add" onSubmit={() => undefined} />
+      )
+    )
+  } else {
+    rows.push(drawSettingRow(ui, 'Add a command', drawNote(ui, 'From the terminal.')))
+  }
+  rows.push(
+    drawSettingRow(
+      ui,
+      'Time limit',
+      drawChoiceRow(
+        ui,
+        TIME_LIMIT_MINUTES.map(minutes => ({ key: `${TIMEOUT_KEY_PREFIX}${minutes}`, label: `${minutes} min`, isOn: limit === minutes * 60 }))
+      )
+    ),
+    drawSettingRow(
+      ui,
+      'When one ends',
+      drawChoiceRow(ui, [
+        { key: `${NOTIFY_KEY_PREFIX}on`, label: 'Notice', isOn: isNoticeShown },
+        { key: `${NOTIFY_KEY_PREFIX}off`, label: 'Nothing', isOn: !isNoticeShown }
+      ])
+    )
   )
+
+  return drawSettingsView(ui, {
+    title: '⚙ Checks settings',
+    ...(repoName ? { detail: repoName } : {}),
+    rows,
+    footer: [<Button key={DONE_KEY} variant="primary" label="Done" onPress={() => undefined} />],
+    columns
+  })
 }
 
 /** The card's body, from its stored state; every press is answered by registerChecksHooks. */
 export function drawChecks(ui: Elements[RenderSurface], state: ChecksState, columns: number): JSX.Element {
   const { Box, Button } = ui
   if (!state.isLoaded) return drawNote(ui, 'Reading this repo’s settings…')
-  if (state.setup) return drawSetup(ui, state.setup, state.checks !== undefined, columns)
+  if (state.setup) return drawChecksSettings(ui, state, state.setup, columns)
   const checks = checksOf(state)
-  const settingsButton = <Button key={SETUP_KEY} plain dimColor label="⚙" onPress={() => undefined} />
 
   return (
     <Box flexDirection="column" width={columns}>
-      {checks.length === 0 && drawNote(ui, 'No checks: ⚙ to add')}
+      {checks.length === 0 && drawNote(ui, 'No checks yet: ⚙ above to add')}
       {checks.map(check => drawCheck(ui, check, state))}
-      {drawActions(ui, [
-        ...(checks.length > 0
-          ? [
-              <Button
-                key={RUN_ALL_KEY}
-                label={state.isRunningAll ? 'Running all…' : 'Run all'}
-                variant={state.isRunningAll ? undefined : 'primary'}
-                dimColor={state.isRunningAll === true}
-                onPress={() => undefined}
-              />
-            ]
-          : []),
-        settingsButton
-      ])}
+      {checks.length > 0 &&
+        drawActions(ui, [
+          <Button
+            key={RUN_ALL_KEY}
+            label={state.isRunningAll ? 'Running all…' : 'Run all'}
+            variant={state.isRunningAll ? undefined : 'primary'}
+            dimColor={state.isRunningAll === true}
+            onPress={() => undefined}
+          />
+        ])}
     </Box>
   )
 }
@@ -470,5 +541,8 @@ export const checksPanel: DockPanel = {
   title: 'Checks',
   icon: '✅',
   description: 'Run this repo’s lint, type, test and format commands in the background',
-  isBuiltIn: true
+  isBuiltIn: true,
+  hasSettings: true,
+  revision: 2,
+  whatsNew: 'Settings moved to ⚙ in the card’s header'
 }

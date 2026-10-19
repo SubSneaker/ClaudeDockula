@@ -1,6 +1,8 @@
+<p><img src="docs/assets/icon.svg" width="64" alt="ClaudeDockula icon"></p>
+
 # ClaudeDockula
 
-A Claude Code plugin that puts a band of emoji tabs above the prompt and opens docks of live panel cards, either as right-side panes or as one bottom dock above the prompt. Built-in panels: [Branch](docs/panels/branch.md), [Checks](docs/panels/checks.md), [Activity](docs/panels/activity.md), [Jira](docs/panels/jira.md), [GitGud](docs/panels/gitgud.md) (your pull requests and reviews on GitHub, GitLab or Bitbucket) and [Slacker](docs/panels/slacker.md) (your Slack @s, DMs and thread replies). GitGud and Slacker are opt-in. Each link is that panel's user guide. You can also describe a panel of your own and have Claude build it.
+A Claude Code plugin that puts a band of emoji tabs above the prompt and opens docks of live panel cards, either as right-side panes or as one bottom dock above the prompt. Built-in panels: [Branch](docs/panels/branch.md), [Checks](docs/panels/checks.md), [Activity](docs/panels/activity.md), [Jira](docs/panels/jira.md), [GitGud](docs/panels/gitgud.md) (your pull requests and reviews on GitHub, GitLab or Bitbucket) and [Slacker](docs/panels/slacker.md) (your Slack @s, DMs and thread replies). Panels that need an MCP server (Jira, Slacker) are off until you add them in ⚙ Manage. Each link is that panel's user guide. You can also describe a panel of your own and have Claude build it.
 
 **How to use: [docs/usage.md](docs/usage.md).** It covers opening docks, picking and ordering panels, views, side-by-side layouts, the bottom dock, `/dock`, your own panels, where settings live, and troubleshooting.
 
@@ -70,7 +72,7 @@ claude plugin test .
 
 ## Settings
 
-Settings are personal. Each panel asks for what it needs the first time, inside its card, and saves it in the plugin's store under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`). Nothing personal is committed in this repo. What is kept, how to change it and how to reset it are in [Where your settings and files live](docs/usage.md#where-your-settings-and-files-live).
+Settings are personal. Each panel asks for what it needs the first time, inside its card. Press `⚙` in a card's header to change them later. `⚙ Manage` has `Reset layout` and `Reset all settings`. Settings are saved in the plugin's store under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`). Nothing personal is committed in this repo. What is kept, how to change it and how to reset it are in [Where your settings and files live](docs/usage.md#where-your-settings-and-files-live).
 
 ## Your own panels
 

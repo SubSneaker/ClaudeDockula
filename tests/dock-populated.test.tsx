@@ -37,7 +37,11 @@ function bandProps(bodyColumns: number): RenderPropsOf['AbovePrompt'] {
 }
 
 test('every panel draws a valid card and band tab once it holds data', async ($, on) => {
+  // A layout that already holds Jira: it is opt-in, so a new install does not place it.
+  const view = { id: '1', panels: ['branch', 'checks', 'activity', 'jira'], minimized: [], direction: 'column', widths: {} }
+  const dock = { id: 'main', name: 'Dock', position: 'right', views: [view], activeViewId: '1', isOpen: false, view: 'panels', usedAt: 0 }
   mock.store(on, {
+    layout: { docks: [dock], lastDockId: 'main', known: ['branch', 'checks', 'activity', 'jira', 'slacker', 'gitgud'] },
     settings: { jira: { server: 'atlassian', flavour: 'standard', site: { cloudId: 'abc', url: 'https://acme.atlassian.net' } } },
     'settings:/repo': { checks: [{ id: 'types', name: 'Types', argv: ['pnpm', 'exec', 'tsc', '--noEmit'] }] }
   })

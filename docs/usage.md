@@ -23,10 +23,10 @@ When the plugin loads, the band appears above the prompt, aligned to the right:
                     🌿 ABC-123 ·3   ✅ 4/4   🕘 12   🎫 In Review   ➕
 ```
 
-- There is one tab for each panel that some dock shows. At first that is Branch, Checks, Activity and Jira, all in one right dock called `Dock`, which starts closed.
+- There is one tab for each panel that some dock shows. At first that is Branch, Checks, Activity and GitGud, all in one right dock called `Dock`, which starts closed.
 - A tab whose panel is waiting for its first setup reads `set up`, dim. Open the panel to finish it (see [Troubleshooting](#a-panel-says-set-up)).
 - ➕ at the end builds a new panel of your own (see [Add your own panel](#add-your-own-panel)).
-- The band also shows two notices, `New panel: 💬 Slacker` and `New panel: 🐙 GitGud`. These two panels are off until you tick them in ⚙ Manage (see [Show or hide panels](#show-or-hide-panels)).
+- Panels that need an MCP server (Jira, Slacker) are off until you add them in ⚙ Manage (see [Show or hide panels](#show-or-hide-panels)). The band shows a `New panel` notice for each.
 
 When the band runs out of room, the tabs drop their summaries and keep only their emoji.
 
@@ -151,12 +151,11 @@ To remove a dock, open its ⚙ Manage and press **Remove dock**. The last dock c
 
 ## Change a panel's settings
 
-Panels ask for what they need the first time, inside their card. To change it later:
+Panels ask for what they need the first time, inside their card. To change it later, press `⚙` in the card's header, before `↑ ↓`. The card shows its settings in place of its body. A closed card opens first. Press `Done` to go back to the body.
 
-- **GitGud** has **⚙** in its card's header, before ↑ ↓. Press it to open its settings inside the card. If the card was closed, it opens.
-- **Checks** and **Jira** have a **⚙** button inside the card, under their rows.
-- **Slacker** keeps your watched words, set with **★ Watch** under its feed.
-- **Branch** and **Activity** have no settings.
+Every built-in panel has one. Your own panels can too (see [Add your own panel](#add-your-own-panel)).
+
+Settings are saved for every session. A change in one dock shows in every dock that holds the panel.
 
 Each panel's guide lists its settings in full.
 
@@ -212,11 +211,11 @@ On mobile, the form asks you to use a terminal or the desktop app. How your pane
 
 **🕘 Activity** lists what Claude did in this session: the files it edited and its latest tool calls, each marked as running, done, refused or stopped. **Clear** empties both lists. It needs no setup and writes nothing. [Activity guide](panels/activity.md).
 
-**🎫 Jira** shows your Jira tickets as a board, in the lanes of your team's board, with the ticket of your current branch marked `★`. You can drag a ticket to another lane (you confirm each move), start a branch for it, or add it to the prompt. It needs an Atlassian MCP server, connected in `/mcp`. [Jira guide](panels/jira.md).
+**🎫 Jira** (off until you add it) shows your Jira tickets as a board, in the lanes of your team's board, with the ticket of your current branch marked `★`. You can drag a ticket to another lane (you confirm each move), start a branch for it, or add it to the prompt. It needs an Atlassian MCP server, connected in `/mcp`. [Jira guide](panels/jira.md).
 
-**🐙 GitGud** (opt-in) lists the pull requests waiting for your review, your own pull requests and your issues, with CI and review state on each row. It reads GitHub, GitLab and Bitbucket Cloud. It can put a pull request in the prompt, write a PR description, warn you when another pull request changes the same files, and run a review in the background. It needs `gh` or `glab` signed in, or a Bitbucket token. [GitGud guide](panels/gitgud.md).
+**🐙 GitGud** lists the pull requests waiting for your review, your own pull requests and your issues, with CI and review state on each row. It reads GitHub, GitLab and Bitbucket Cloud. It can put a pull request in the prompt, write a PR description, warn you when another pull request changes the same files, and run a review in the background. It needs `gh` or `glab` signed in, or a Bitbucket token. [GitGud guide](panels/gitgud.md).
 
-**💬 Slacker** (opt-in) shows what needs you in Slack: @mentions, direct messages, thread replies and words you watch. You can search Slack, add a message or thread to the prompt, and reply; a reply is posted only when you press **Send**. It needs the claude.ai Slack connector, connected in `/mcp`. [Slacker guide](panels/slacker.md).
+**💬 Slacker** (off until you add it) shows what needs you in Slack: @mentions, direct messages, thread replies and words you watch. You can search Slack, add a message or thread to the prompt, and reply; a reply is posted only when you press **Send**. It needs the claude.ai Slack connector, connected in `/mcp`. [Slacker guide](panels/slacker.md).
 
 ## Where your settings and files live
 
@@ -224,7 +223,7 @@ Everything below is in your Claude folder: `$CLAUDE_CONFIG_DIR` when it is set, 
 
 - **`plugins/store/`** holds ClaudeDockula's store: one JSON file per copy of the plugin, named like `claudedockula_<source>-<id>.json`. An installed copy and a dev copy (loaded with `--plugin-dir`) have separate files. The store keeps:
   - your docks, views and layout, including the bottom dock's height;
-  - each panel's settings, such as your saved checks per repo, your Jira server, query and branch naming, GitGud's repos and services, and Slacker's watched words;
+  - each panel's settings, such as your saved checks per repo, your Jira server, query and branch naming, GitGud's repos and services, Branch's refresh and files shown, Checks' time limit, Activity's rows, Jira's list refresh and Slacker's sources, refresh, look back and watched words;
   - which panel updates you have already been told about.
 - **`claudedockula/gitgud/`** holds the files GitGud writes: PR descriptions, commit summaries and background review logs.
 - **`skills/dockula-panels/`** is your own panels plugin, set up by your first ➕ New panel. It is yours: updating ClaudeDockula never touches it, so back it up yourself, for example with `git init` there.
@@ -233,13 +232,31 @@ No passwords or tokens are kept in the store. For Bitbucket, GitGud keeps only y
 
 ### Reset
 
-There is no reset button. To start over:
+Open `⚙ Manage` and look under the removal buttons. There are two resets.
 
-1. Quit every Claude Code session. A running session writes its layout back when it changes.
+- `↺ Reset layout` puts the docks back as a new install has them. One dock, `Dock`, stays open on Branch, Checks, Activity and GitGud. Other docks close and go away, and Jira and Slacker are unticked. Tick them again in `⚙ Manage`. Every panel keeps its settings.
+- `↺ Reset all settings` does the same to the layout, then deletes everything else the plugin saved. Each panel asks again for what it needs, such as your checks, your Slack words and your GitGud repos. Jira does nothing until you tick it in. Then it looks for your Atlassian server again: it saves a single server and site by itself, and asks when there are several. Nothing is announced after a reset except its own notice.
+
+Each one asks first, in place: `Yes` runs it and `No` cancels. Pressing anything else also cancels.
+
+A reset keeps these:
+
+- the list of files GitGud wrote, and the marker that says old GitGud settings were moved;
+- your Bitbucket token, in your keychain or environment, and every file on disk;
+- your own panels, which belong to another plugin;
+- work that is running. A check that is running finishes. A Jira move that was sent finishes. A background review keeps going and ends with the default notice.
+
+Other open sessions keep their own layout in memory. Close or restart them, or they write it back on their next change.
+
+On a terminal without fullscreen, right docks cannot open, so you see the new layout only in the band.
+
+If Claude Code will not start, you can reset by hand.
+
+1. Quit every Claude Code session.
 2. Delete the `claudedockula_…json` file in `plugins/store/`, or move it somewhere else to keep a copy.
-3. Start Claude Code. You get the first-run layout, and each panel asks for its setup again.
+3. Start Claude Code. You get the first-run layout.
 
-To reset only the docks and keep the panels' settings, remove just the `"layout"` entry from that file while Claude Code is closed.
+To reset only the docks that way, remove just the `"layout"` entry from that file.
 
 Your own panels are not affected by a reset. To remove them all, delete `skills/dockula-panels/`.
 

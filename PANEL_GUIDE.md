@@ -6,7 +6,7 @@ Instructions for Claude. There are two kinds of panel:
   the person's own panels plugin, never in ClaudeDockula, so an update of ClaudeDockula (which replaces
   its whole folder) never touches them.
 - **Built-in panels** ("Built-in panels (ClaudeDockula's own code only)", further down): branch, checks,
-  activity, Jira, Slacker and GitGud (the last two opt-in), part of ClaudeDockula itself. Only someone working on ClaudeDockula
+  activity, GitGud, Jira and Slacker (Jira and Slacker are opt-in: they need an MCP server), part of ClaudeDockula itself. Only someone working on ClaudeDockula
   changes those.
 
 The engine's API is `.claude-plugin/types/claude-code/index.d.ts` in the plugin you are working in: grep
@@ -50,13 +50,13 @@ this plugin hooks; each panel's hooks name it with a literal matcher, `{ panel: 
 | `dockula.panels` | once, in `hooks/panels/index.ts` (no matcher: it has no argument) | none | `{ value: [...below.value, ...PANELS] }`, `below` being `await next(e)` |
 | `dockula.draw` | `{ panel: '<id>' }` | `{ panel, surface, columns, dockId }` | `{ value: lines }`: the card body as rows of spans |
 | `dockula.summary` | `{ panel: '<id>' }` | `{ panel }` | `{ value: '3' }`: the band text after the emoji |
-| `dockula.input` | `{ panel: '<id>' }` | `{ panel, dockId, surface, event }` | `{ value: { handled: true } }`: the dock redraws the panel |
+| `dockula.input` | `{ panel: '<id>' }` | `{ panel, dockId, surface, event }` | `{ value: { handled: true } }`: the dock redraws the panel. A press of the card's `⚙` arrives as `event.type === 'settings'` |
 
 and one method this plugin calls: `await $.dockula.changed()` after its state changed outside an `input`
 answer (a timer, a fetch that finished, a reload), so the dock redraws. Inside an `input` answer it is not
 needed (`handled: true` redraws) and does not run: no hook runs under its own call.
 
-A panel's entry in `PANELS` is `{ id, title, icon, description }`: `id` lowercase letters, digits and
+A panel's entry in `PANELS` is `{ id, title, icon, description, hasSettings? }`: `id` lowercase letters, digits and
 `-` (not `add` or `layout`, and no built-in's: `branch`, `checks`, `activity`, `jira`, `gitgud`, `slacker`); `icon` one emoji.
 
 ### Drawing: rows of spans
@@ -90,6 +90,7 @@ the person did, already matched to a span, as `e.event`:
 - `key`: `name` (`up`, `down`, `return`, `delete`, a letter) and `key`, the span last clicked. Keys reach
   the canvas only once a click gave it the focus; Escape never arrives (it hands the focus back).
 - `x`, `y` (cells in the card), `button`, and `shift`, `alt`, `ctrl` when held.
+- `settings`: the person pressed `⚙` in the card's header. It arrives only for a panel that lists `hasSettings: true`, which is what makes the dock draw that `⚙`. Toggle the panel's own settings rows and answer `handled: true`. A plugin that answers `handled: false` changes nothing, so older panels keep working.
 
 Answer `{ value: { handled: true } }` once the state is updated. Start slow work with `void` and answer
 at once; when it lands, update the state and call `$.dockula.changed()`.
@@ -110,7 +111,8 @@ Nothing drags, right-clicks or types there, so every drop, menu and key action n
   line and a `Set up ▸` target. Its click starts (with `void`) a function that asks with
   `$.ui.ask(question, options)` (two to four choices, plus free text under "Other"), saves the answer in
   `$.store` (keyed by the repo's root, `settings:<root>`, when it is per repo), updates the state and calls
-  `$.dockula.changed()`. Never declare `userConfig` for it.
+  `$.dockula.changed()`. Never declare `userConfig` for it. To let the person change it later, list
+  `hasSettings: true` and answer the `settings` event by showing the settings rows in place of the body.
 - Data comes as for the built-ins ("Getting data" below): read-only MCP tools, read-only commands, HTTP,
   timers started in the panel's own `session.start` hook. A change made elsewhere goes in the prompt box
   with `$.prompt.fill` for the person to send.
@@ -270,10 +272,26 @@ in `PANELS`.
 
 ### Settings in the card's header
 
-`hasSettings: true` on the panel (`hooks/panels/contract.ts`) draws `⚙` in its card's header, before `↑` `↓`, keyed
-`dock-<dockId>-settings-<id>`. The dock expands a minimized card; the panel hooks that press as it hooks its header
-toggle (`ui.press { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-<id>$/ }`, `next(e)` first) and opens
-or closes its settings in its own body, with a Done Button there. The GitGud panel is the example.
+Every built-in panel sets `hasSettings: true` (`hooks/panels/contract.ts`). The dock then draws `⚙` in its card's
+header, before `↑` `↓`, keyed `dock-<dockId>-settings-<id>`. The dock expands a minimized card. The panel does the
+rest in its own file:
+
+1. Hook the press with a literal matcher and call `next(e)` first:
+   `on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-<id>$/ }, …)`.
+2. Keep the open flag in the panel's own state (`isSettingsOpen`), and the saved values in `settings` on that state,
+   so the pure draw can read them. Checks and Jira use their setup form as the open flag.
+3. When the flag is set, the draw returns the settings view in place of the body. Build it with
+   `hooks/dock/settingsView.tsx`: `drawSettingsView` for the frame, `drawSettingRow` for a labelled row,
+   `drawChoiceRow`, `drawChoiceColumn` and `drawToggle` for the values. That file takes no `$` and reads no
+   state.
+4. Name the keys `<id>-set-<setting>-<value>` and close with `<id>-settings-done`. Every `ui.press` matcher is
+   written out in the panel's file. Save each change at once under `<id>:settings` with `$.store.set`, and parse it
+   with a pure helper in `hooks/panels/<id>/settings.ts` that drops values not on the allowed lists. Save only
+   what the person chose. Leave defaults to the code that reads them.
+5. Hook `/^dock-(main|\d+)-reset-all-yes$/` too. The dock has already cleared the store when `next(e)` returns.
+   The panel then forgets its settings in memory and, when it needs a setup, asks again.
+
+`gitgud.tsx` is the example for the shape, and `branch.tsx` for the saved settings.
 
 ### Opt-in panels and telling people about changes
 
@@ -331,6 +349,8 @@ or closes its settings in its own body, with a Done Button there. The GitGud pan
    add two cases: `case '<id>': return draw<Pascal>(ui, await read($, <camel>Atom), columns)` in
    `drawPanelBody`, and `case '<id>': return bandTab(panel, summarize<Pascal>(await read($, <camel>Atom)))`
    in `readBandTab`.
+   Add `hasSettings: true` to the panel, `<Pascal>Settings` to the types, and a `settings.ts` beside it. Settings
+   views are built with `hooks/dock/settingsView.tsx`.
 4. `types/index.d.ts`: add a `// --- <id> panel ---` block with `export interface <Pascal>State`
    (optional fields, so `{}` is a valid initial value) and add `'<id>': <Pascal>State` to the
    `'claudedockula'` map in `declare module 'claude-code'`. Keep the file self-contained: no imports.

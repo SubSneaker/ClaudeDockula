@@ -37,7 +37,7 @@ test('files go under the Claude folder; the panel is a built-in that waits to be
   expect(docDirOf('/Users/example/.claude/', undefined)).toBe('/Users/example/.claude/claudedockula/gitgud')
   expect(docDirOf(undefined, '/Users/example')).toBe('/Users/example/.claude/claudedockula/gitgud')
   expect(docDirOf(' ', undefined)).toBeUndefined()
-  expect(PANELS.find(panel => panel.id === 'gitgud')).toMatchObject({ icon: '🐙', isBuiltIn: true, isOptIn: true })
+  expect(PANELS.find(panel => panel.id === 'gitgud')).toMatchObject({ icon: '🐙', isBuiltIn: true })
 })
 
 test('ticked in from ⚙ Manage, the card and its band tab draw on terminal and desktop', { timeoutMs: 20_000 }, async ($, on) => {
@@ -47,7 +47,6 @@ test('ticked in from ⚙ Manage, the card and its band tab draw on terminal and 
   const paneProps: RenderPropsOf['Pane'] = { title: 'Dock', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 80 }, view: {} }
   const bandProps: RenderPropsOf['AbovePrompt'] = { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 80, scroll: { offset: 0, bodyRows: 5 }, view: {} }
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps })
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
   await pane.unmount()
 
   for (const surface of ['terminal', 'desktop'] as const) {

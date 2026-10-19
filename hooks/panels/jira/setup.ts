@@ -1,9 +1,7 @@
 import type { JiraServerInfo, JiraSetup, JiraSettings, JiraSite, JiraState, Settings } from '../../../types'
-import { compileTicketPattern, pickBoardServer } from '../../settings'
+import { pickBoardServer } from '../../settings'
 
-export type JiraSetupField = 'jql' | 'branchTemplate' | 'ticketPattern'
-
-export const INVALID_PATTERN_NOTE = 'That ticket pattern is not valid: the default is used.'
+export type JiraSetupField = 'jql' | 'branchTemplate'
 
 /** `https://acme.atlassian.net` → `acme.atlassian.net`: how a site reads in the picker. */
 export function siteLabel(site: JiraSite): string {
@@ -16,22 +14,17 @@ export function siteLabel(site: JiraSite): string {
  * @example
  * // before: servers [{ name: 'a', flavour: 'gateway' }], saved { jira: { server: 'a', site: S, jql: 'project = X' } }
  * // after:  { servers: [a], server: 'a', sites: [S], siteId: S.cloudId, jql: 'project = X', branchTemplate: '',
- * //           ticketPattern: '', isEditing: true }
+ * //           isEditing: true }
  */
 export function buildJiraSetup(servers: readonly JiraServerInfo[], settings: Settings): JiraSetup {
   const saved = settings.jira
   const listed = saved && !servers.some(server => server.name === saved.server) ? [{ name: saved.server, flavour: saved.flavour }] : []
-  const ticketPattern = settings.ticketPattern ?? ''
-  const isInvalid = ticketPattern !== '' && !compileTicketPattern(ticketPattern).isValid
-
   return {
     servers: [...listed, ...servers],
     sites: saved ? [saved.site] : [],
     jql: saved?.jql ?? '',
     branchTemplate: settings.branchTemplate ?? '',
-    ticketPattern,
-    ...(saved ? { server: saved.server, siteId: saved.site.cloudId, isEditing: true } : {}),
-    ...(isInvalid ? { note: INVALID_PATTERN_NOTE } : {})
+    ...(saved ? { server: saved.server, siteId: saved.site.cloudId, isEditing: true } : {})
   }
 }
 
@@ -79,11 +72,12 @@ export interface SetupOutcome {
 
 /**
  * The settings a filled form saves; nothing until a server and a site are picked. A blank field is not saved, so
- * its default stands, and an invalid ticket pattern is left out.
+ * its default stands. Everything else `previous` holds stays, the ticket pattern (edited in Branch) included, so
+ * pass what the store holds right now.
  * @example
- * // before: setup { server: 'b', siteId: 'x', jql: '', branchTemplate: 'feat/{key}-', ticketPattern: '([' }, previous {}
- * // after:  { settings: { jira: { server: 'b', flavour: 'gateway', boardServer: 'b', site }, branchTemplate: 'feat/{key}-' },
- * //           note: 'That ticket pattern is not valid: the default is used.' }
+ * // before: setup { server: 'b', siteId: 'x', jql: '', branchTemplate: 'feat/{key}-' }, previous { ticketPattern: 'AB-\\d+' }
+ * // after:  { settings: { jira: { server: 'b', flavour: 'gateway', boardServer: 'b', site }, branchTemplate: 'feat/{key}-',
+ * //           ticketPattern: 'AB-\\d+' } }
  */
 export function settingsFromSetup(setup: JiraSetup, previous: Settings): SetupOutcome | undefined {
   const info = setup.servers.find(server => server.name === setup.server)
@@ -98,20 +92,10 @@ export function settingsFromSetup(setup: JiraSetup, previous: Settings): SetupOu
     ...(boardServer ? { boardServer } : {}),
     ...(jql ? { jql } : {})
   }
-  const { jira: _jira, branchTemplate: _template, ticketPattern: _pattern, ...kept } = previous
+  const { jira: _jira, branchTemplate: _template, ...kept } = previous
   const template = setup.branchTemplate.trim()
-  const pattern = setup.ticketPattern.trim()
-  const isPatternValid = pattern === '' || compileTicketPattern(pattern).isValid
 
-  return {
-    settings: {
-      ...kept,
-      jira,
-      ...(template ? { branchTemplate: template } : {}),
-      ...(pattern && isPatternValid ? { ticketPattern: pattern } : {})
-    },
-    ...(isPatternValid ? {} : { note: INVALID_PATTERN_NOTE })
-  }
+  return { settings: { ...kept, jira, ...(template ? { branchTemplate: template } : {}) } }
 }
 
 /** The state with what was read from the old server and site dropped, so a changed choice loads afresh. */

@@ -101,14 +101,20 @@ function fitLine(line, cells) {
   return cells < 1 ? [] : [...kept, ['…', 1, st]]
 }
 
+/** Wraps a line at word boundaries, as the terminal does; a word longer than the line is cut. */
 function wrapLine(line, cells) {
   if (cells < 1) return [[]]
   const out = [[]]
-  let used = 0
   for (const item of line) {
-    if (used + item[1] > cells) { out.push([]); used = 0 }
-    out[out.length - 1].push(item)
-    used += item[1]
+    let current = out[out.length - 1]
+    if (lineCells(current) + item[1] > cells) {
+      const space = current.map(([ch]) => ch).lastIndexOf(' ')
+      const carried = space > 0 ? current.splice(space).slice(1) : []
+      current = [...carried]
+      out.push(current)
+      if (item[0] === ' ' && current.length === 0) continue
+    }
+    current.push(item)
   }
   return out
 }
@@ -143,12 +149,13 @@ function buttonAsText(node) {
   const p = node.props ?? {}
   const inner = (node.children ?? []).length > 0 ? node.children : [p.label ?? '']
   const label = { type: 'Text', props: { dimColor: p.dimColor || undefined, color: p.variant === 'primary' ? ACCENT : undefined }, children: inner }
+  const line = { wrap: 'truncate-end' }
   if (p.plain) {
     return p.hotkey
-      ? { type: 'Text', props: {}, children: [{ type: 'Text', props: { color: ACCENT }, children: [p.hotkey] }, ': ', label] }
-      : label
+      ? { type: 'Text', props: line, children: [{ type: 'Text', props: { color: ACCENT }, children: [p.hotkey] }, ': ', label] }
+      : { type: 'Text', props: line, children: [label] }
   }
-  return { type: 'Text', props: {}, children: ['[ ', label, ' ]'] }
+  return { type: 'Text', props: line, children: ['[ ', label, ' ]'] }
 }
 
 function edges(p, name) {
@@ -240,9 +247,9 @@ export function layout(node, avail, fill = true, inherited = {}) {
       pos += sizes[i] + between
     })
   } else {
-    const blocks = flowKids.map(k => ({ b: layout(k, inner, true, inherited) }))
-    const naturalW = Math.max(0, ...blocks.map(({ b }) => b.w))
-    const w = fill || typeof p.width === 'number' ? inner : Math.min(inner, naturalW)
+    const isSized = fill || typeof p.width === 'number'
+    const w = isSized ? inner : Math.min(inner, Math.max(0, ...flowKids.map(k => layout(k, inner, false, inherited).w)))
+    const blocks = flowKids.map(k => ({ b: layout(k, w, true, inherited) }))
     const h = blocks.reduce((s, { b }) => s + b.h, 0) + gap * Math.max(0, blocks.length - 1)
     content = blank(w, h)
     let y = 0
@@ -289,10 +296,6 @@ export function toRuns(block) {
     if (runs.length > 0 && runs[runs.length - 1][1] === '') runs[runs.length - 1][0] = runs[runs.length - 1][0].replace(/\s+$/, '')
     return runs
   })
-}
-
-export function plainRows(block) {
-  return toRuns(block).map(runs => runs.map(([t]) => t).join(''))
 }
 
 export { cellsOf }

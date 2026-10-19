@@ -195,7 +195,7 @@ test('a pack panel missing at session start keeps its place, comes back to it, a
   await pane.press({ key: 'dock-main-toggle-demo' })
   await pane.unmount()
   const placed = await placement()
-  expect(placed.slice(-2)).toEqual(['dock-main-toggle-demo ▸ 🧪 Demo', 'dock-main-toggle-jira ▾ 🎫 Jira · assigned to me'])
+  expect(placed.slice(-2)).toEqual(['dock-main-toggle-demo ▸ 🧪 Demo', 'dock-main-toggle-gitgud ▾ 🐙 GitGud'])
 
   // The pack does not list it: no card, no tab, a dim row in Manage.
   demo = 'off'
@@ -266,4 +266,39 @@ describe('what packs answer is read as untrusted data', () => {
     })
     expect(readCanvasEvent({ type: 'pointer', x: 1, y: 2 })).toBeUndefined()
   })
+})
+
+/** A pack whose panel lists `hasSettings`: its ⚙ reaches it as a `settings` event. */
+const withSettings = {
+  name: 'dockula-panels',
+  register(on: On) {
+    let isOpen = false
+    on('dockula.panels', async ($, e, next) => {
+      const below = await next(e)
+
+      return 'value' in below ? { value: [...(below.value ?? []), { id: 'demo', title: 'Demo', icon: '🧪', description: 'A demo', hasSettings: true }] } : below
+    })
+    on('dockula.draw', { panel: 'demo' }, async () => ({ value: [[{ text: isOpen ? 'settings' : 'body' }]] }))
+    on('dockula.input', { panel: 'demo' }, async (_$, e) => {
+      if (e.event.type !== 'settings') return { value: { handled: false } }
+      isOpen = !isOpen
+
+      return { value: { handled: true } }
+    })
+  },
+} as const
+
+test('a pack panel that lists hasSettings gets a ⚙ that sends it a settings event', { plugins: [withSettings] }, async ($, on) => {
+  mock.clock(on)
+  mock.store(on)
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  await $.session.start({ cwd: '/repo', surface: 'vscode', isInteractive: true })
+  const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'vscode', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
+  expect(await pane.find({ key: 'dock-main-settings-demo' })).toBeDefined()
+  await pane.press({ key: 'dock-main-settings-demo' })
+  expect((await pane.find({ type: 'Text', text: /^settings$/ }))?.text).toBe('settings')
+  await pane.unmount()
 })

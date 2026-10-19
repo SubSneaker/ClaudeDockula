@@ -1,13 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { Elements, EngineInterface, On, RenderSurface, Timer } from 'claude-code'
 
-import type { NoticeTone, SlackerDraft, SlackerItem, SlackerKind, SlackerState, SlackerThread } from '../../types'
+import type { NoticeTone, SlackerDraft, SlackerItem, SlackerKind, SlackerSettings, SlackerSource, SlackerState, SlackerThread } from '../../types'
 import { DEFAULT_LAYOUT, bandPanelIds, readLayout } from '../dock/layout'
 import { NO_NOTICES, pushNotice } from '../dock/notices'
+import { drawChoiceRow, drawSettingRow, drawSettingsView, drawToggle } from '../dock/settingsView'
 import { TONE, drawActions, fitEnd, type DockElements } from '../dock/ui'
 import type { DockPanel } from './contract'
 import {
   LIST_STEP,
+  MAX_KEYWORDS,
   conversationOf,
   countUnseen,
   dmSearchArgs,
@@ -50,8 +52,23 @@ import {
   type FeedRow,
   type FeedSegment,
   type SlackerControl,
-  type SlackerKey
+  type SlackerKey,
+  type SlackerSettingChange
 } from './slacker/rows'
+import {
+  DAYS_CHOICES,
+  DEFAULT_REFRESH_SECONDS,
+  REFRESH_CHOICES,
+  SOURCES,
+  SOURCE_LABEL,
+  STORE_SETTINGS,
+  daysOf,
+  keepSources,
+  parseSlackerSettings,
+  refreshMsOf,
+  sourcesOf,
+  toggleSource
+} from './slacker/settings'
 
 // 💬 Slacker: your @s, DMs from people, replies in your threads and watched words from Slack, with a search box, a
 // right-click menu, + Prompt, and replies you review (and can have Haiku polish) before they are sent. The engine
@@ -59,7 +76,6 @@ import {
 
 const PANEL_ID = 'slacker'
 const SERVER = 'claude_ai_Slack'
-const REFRESH_MS = 30_000
 const POLISH_MODEL = 'haiku'
 const POLISH_MAX_TOKENS = 800
 const STORE_ME = 'slacker:me'
@@ -140,17 +156,21 @@ interface FeedSource {
   keyword?: string
 }
 
-function feedSources(meId: string, after: string, keywords: readonly string[]): FeedSource[] {
-  return [
+function feedSources(meId: string, after: string, keywords: readonly string[], on: readonly SlackerSource[]): FeedSource[] {
+  const kinds: FeedSource[] = [
     { label: 'mentions', kind: 'mention', args: mentionSearchArgs(meId, after) },
     { label: 'DMs', kind: 'dm', args: dmSearchArgs(after) },
-    { label: 'threads', kind: 'thread', args: threadSearchArgs(meId, after) },
+    { label: 'threads', kind: 'thread', args: threadSearchArgs(meId, after) }
+  ]
+
+  return [
+    ...kinds.filter(source => on.some(one => one === source.kind)),
     ...keywords.map((keyword): FeedSource => ({ label: `“${keyword}”`, kind: 'keyword', args: keywordSearchArgs(keyword, after), keyword }))
   ]
 }
 
 /**
- * Reads every source of the feed (the last seven days) and merges them; a source that fails keeps its error
+ * Reads every source of the feed that is on (as many days back as the settings say) and merges them; a source that fails keeps its error
  * line, and when all fail the last feed stays. A refresh asked for while one runs (`isQueued`) runs after it.
  */
 async function refreshFeed($: EngineInterface, isQueued = false): Promise<void> {
@@ -177,7 +197,8 @@ async function refreshFeed($: EngineInterface, isQueued = false): Promise<void> 
 
       return
     }
-    const sources = feedSources(me.id, feedStartDate(now), (await read($, slackerState)).keywords ?? [])
+    const current = await read($, slackerState)
+    const sources = feedSources(me.id, feedStartDate(now, daysOf(current.settings)), current.keywords ?? [], sourcesOf(current.settings))
     const answers = await Promise.all(sources.map(source => callSlack($, 'slack_search_public_and_private', source.args, 'results')))
     const batches = sources.map((source, index) => {
       const answer = answers[index]
@@ -213,7 +234,7 @@ async function refreshFeed($: EngineInterface, isQueued = false): Promise<void> 
   }
 }
 
-/** The 30 s refresh, while the panel is placed; it waits while Slack is refused, until ↻ Refresh or an open; a not-connected message keeps refreshing, as the tool list may miss deferred tools. */
+/** The timed refresh (30 s unless ⚙ says otherwise), while the panel is placed; it waits while Slack is refused, until ↻ Refresh or an open; a not-connected message keeps refreshing, as the tool list may miss deferred tools. */
 async function tick($: EngineInterface): Promise<void> {
   const state = await read($, slackerState)
   if (!state.isRefused && (await isPlaced($))) await refreshFeed($)
@@ -421,26 +442,96 @@ async function askSearch($: EngineInterface): Promise<void> {
   await submitSearch($, answer)
 }
 
-async function askWatchWords($: EngineInterface): Promise<void> {
-  const state = await read($, slackerState)
-  const current = state.keywords ?? []
-  const question =
-    current.length > 0
-      ? `Slacker watches for: ${current.join(', ')}. Which words should it watch instead (up to 3, comma-separated)?`
-      : 'Which words should Slacker watch for (up to 3, comma-separated)?'
-  const myName = state.me?.name
-  const options = current.length > 0 ? ['Keep these', 'Clear watchlist'] : ['Cancel', ...(myName ? [`Watch “${myName}”`] : [])]
-  const answer = await $.ui.ask(question, { header: 'Watchlist', options }).catch(() => undefined)
-  if (answer === undefined || answer === 'Keep these' || answer === 'Cancel') return
-  const keywords = answer === 'Clear watchlist' ? [] : parseKeywords(myName && answer === `Watch “${myName}”` ? myName : answer)
-  if (answer !== 'Clear watchlist' && keywords.length === 0) return
-  await $.store.set(STORE_WORDS, keywords)
+/** The watched words saved and shown; a feed read follows, since the words are one of its sources. */
+async function saveWords($: EngineInterface, keywords: string[]): Promise<void> {
+  await $.store.set(STORE_WORDS, keywords).catch(() => undefined)
   await update($, slackerState, (value): SlackerState => ({
     ...value,
     keywords,
     filter: keywords.length === 0 && value.filter === 'keyword' ? 'all' : value.filter
   }))
   void refreshFeed($, true)
+}
+
+/** ➕ Watch a word: asks for one (or a few, comma-separated) and adds them, three at most. */
+async function askAddWord($: EngineInterface): Promise<void> {
+  const state = await read($, slackerState)
+  const current = state.keywords ?? []
+  const myName = state.me?.name
+  const question = `Which word should Slacker watch for${current.length > 0 ? ` besides ${current.join(', ')}` : ''}?`
+  const options = ['Cancel', ...(myName ? [`Watch “${myName}”`] : [])]
+  const answer = await $.ui.ask(question, { header: 'Watchlist', options }).catch(() => undefined)
+  if (answer === undefined || answer === 'Cancel') return
+  const typed = myName && answer === `Watch “${myName}”` ? myName : answer
+  const keywords = parseKeywords([...current, typed].join(','))
+  if (keywords.length === current.length) return
+  await saveWords($, keywords)
+}
+
+async function removeWord($: EngineInterface, index: number): Promise<void> {
+  const current = (await read($, slackerState)).keywords ?? []
+  if (index >= current.length) return
+  await saveWords($, current.filter((_, at) => at !== index))
+}
+
+/** Starts the timed refresh over, at the saved pace. */
+function restartTicker($: EngineInterface, settings: SlackerSettings | undefined): void {
+  ticker?.cancel()
+  ticker = $.clock.every(refreshMsOf(settings), () => void tick($))
+}
+
+/** One settings change saved at once; sources and look back read the feed again, refresh restarts the timer. */
+async function saveSettings($: EngineInterface, change: (settings: SlackerSettings) => SlackerSettings): Promise<void> {
+  const settings = parseSlackerSettings(change((await read($, slackerState)).settings ?? {}))
+  await $.store.set(STORE_SETTINGS, settings).catch(() => undefined)
+  await update($, slackerState, (state): SlackerState => {
+    const chips: readonly string[] = ['all', 'keyword', ...sourcesOf(settings)]
+
+    return {
+      ...state,
+      settings,
+      ...(state.items ? { items: keepSources(state.items, settings) } : {}),
+      ...(state.filter !== undefined && !chips.includes(state.filter) ? { filter: 'all' } : {})
+    }
+  })
+}
+
+async function handleSetting($: EngineInterface, change: SlackerSettingChange): Promise<void> {
+  if (change.type === 'done') {
+    await update($, slackerState, state => ({ ...state, isSettingsOpen: false }))
+  } else if (change.type === 'word-add') {
+    void askAddWord($)
+  } else if (change.type === 'word-remove') {
+    await removeWord($, change.index)
+  } else if (change.type === 'refresh') {
+    await saveSettings($, settings => ({ ...settings, refreshSeconds: change.seconds }))
+    restartTicker($, (await read($, slackerState)).settings)
+  } else {
+    if (change.type === 'source') await saveSettings($, settings => toggleSource(settings, change.source))
+    else await saveSettings($, settings => ({ ...settings, days: change.days }))
+    void refreshFeed($, true)
+  }
+}
+
+/** The card header's ⚙: the settings view opens, or closes. */
+async function toggleSettings($: EngineInterface): Promise<void> {
+  await update($, slackerState, state => ({ ...state, isSettingsOpen: state.isSettingsOpen !== true }))
+}
+
+/** Reset all settings: what the person set or the panel learned about them is forgotten, so it asks again; the feed, a draft and a search stay. */
+async function forgetSettings($: EngineInterface): Promise<void> {
+  await update($, slackerState, (state): SlackerState => ({
+    ...state,
+    me: undefined,
+    seenAt: undefined,
+    dotsSince: undefined,
+    keywords: undefined,
+    settings: undefined,
+    isSettingsOpen: undefined,
+    filter: state.filter === 'keyword' ? 'all' : state.filter
+  }))
+  restartTicker($, undefined)
+  if (await isPlaced($)) void refreshFeed($, true)
 }
 
 /** The panel was opened from the band or its card: the dots show what came since the last look. */
@@ -466,8 +557,6 @@ async function handleControl($: EngineInterface, name: SlackerControl): Promise<
     await refreshFeed($, true)
   } else if (name === 'allow') {
     await fillAllowRequest($)
-  } else if (name === 'watch') {
-    void askWatchWords($)
   } else if (name === 'seen') {
     await markLooking($, true)
   } else {
@@ -523,6 +612,7 @@ async function handleClick($: EngineInterface, key: SlackerKey | undefined, surf
   else if (key?.kind === 'dots') await toggleMenu($, key.id)
   else if (key?.kind === 'action') await handleAction($, key, surface)
   else if (key?.kind === 'draft') await handleDraft($, key)
+  else if (key?.kind === 'setting') await handleSetting($, key.change)
   else await toggleMenu($, undefined)
 }
 
@@ -552,22 +642,25 @@ export function registerSlackerHooks(on: On): void {
   on('session.start', { isInteractive: true }, async ($, e, next) => {
     const started = await next(e)
     ticker?.cancel()
-    const [me, seenAt, words] = await Promise.all([
+    const [me, seenAt, words, saved] = await Promise.all([
       $.store.get(STORE_ME).catch(() => undefined),
       $.store.get(STORE_SEEN).catch(() => undefined),
-      $.store.get(STORE_WORDS).catch(() => undefined)
+      $.store.get(STORE_WORDS).catch(() => undefined),
+      $.store.get(STORE_SETTINGS).catch(() => undefined)
     ])
     const storedMe = readStoredMe(me)
     const storedWords = readStoredWords(words)
+    const settings = parseSlackerSettings(saved)
     await update($, slackerState, (state): SlackerState => ({
       ...state,
       isLoading: false,
       draft: draftAfterReload(state.draft),
       ...(storedMe && !state.me ? { me: storedMe } : {}),
       ...(typeof seenAt === 'number' && state.seenAt === undefined ? { seenAt, dotsSince: seenAt } : {}),
-      ...(storedWords && state.keywords === undefined ? { keywords: storedWords } : {})
+      ...(storedWords && state.keywords === undefined ? { keywords: storedWords } : {}),
+      ...(state.settings === undefined ? { settings } : {})
     }))
-    ticker = $.clock.every(REFRESH_MS, () => void tick($))
+    restartTicker($, settings)
     if (await isPlaced($)) void refreshFeed($)
 
     return started
@@ -586,6 +679,22 @@ export function registerSlackerHooks(on: On): void {
   on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-enable-\d+-slacker$/ }, async ($, e, next) => {
     const pressed = await next(e)
     if (await isPlaced($)) void refreshFeed($)
+
+    return pressed
+  })
+
+  // The card header's ⚙ (the dock opens a minimized card first).
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-slacker$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await toggleSettings($)
+
+    return pressed
+  })
+
+  // Reset all settings in ⚙ Manage: the dock has emptied the store by the time `next` returns.
+  on('ui.press', { plugin: 'claudedockula', element: /^dock-(main|\d+)-reset-all-yes$/ }, async ($, e, next) => {
+    const pressed = await next(e)
+    await forgetSettings($)
 
     return pressed
   })
@@ -717,19 +826,55 @@ function drawStatus(ui: DockElements, state: SlackerState, hasFeed: boolean): JS
   )
 }
 
-/** ↻ Refresh, and 🔓 Allow Slack while Claude Code refuses the calls; Seen and the watchlist once Slack answers. */
+/** ↻ Refresh, and 🔓 Allow Slack while Claude Code refuses the calls; Seen once Slack answers. */
 function actionButtons(ui: DockElements, state: SlackerState): JSX.Element[] {
   const { Button } = ui
   const refresh = <Button key={`${KEY_PREFIX}refresh`} plain dimColor label="↻ Refresh" onPress={() => undefined} />
   if (state.isDisconnected) return [refresh]
   if (state.isRefused) return [<Button key={`${KEY_PREFIX}allow`} variant="primary" label="🔓 Allow Slack" onPress={() => undefined} />, refresh]
-  const words = state.keywords ?? []
 
-  return [
-    refresh,
-    <Button key={`${KEY_PREFIX}seen`} plain dimColor label="✓ Seen" onPress={() => undefined} />,
-    <Button key={`${KEY_PREFIX}watch`} plain dimColor label={words.length > 0 ? `★ Watching ${words.length}` : '★ Watch'} onPress={() => undefined} />
-  ]
+  return [refresh, <Button key={`${KEY_PREFIX}seen`} plain dimColor label="✓ Seen" onPress={() => undefined} />]
+}
+
+/** ⚙ in the header: watched words (each with ✕, and ➕ while there is room), the sources, how often to refresh, how far back to read. */
+function drawSlackerSettings(ui: DockElements, state: SlackerState, columns: number): JSX.Element {
+  const { Box, Button, Text } = ui
+  const words = state.keywords ?? []
+  const on = sourcesOf(state.settings)
+  const refresh = state.settings?.refreshSeconds ?? DEFAULT_REFRESH_SECONDS
+  const days = daysOf(state.settings)
+  const wordRows = words.map((word, index) => (
+    <Box key={`word-${index}`} flexDirection="row" columnGap={2}>
+      <Text bold>{fitEnd(word, Math.max(8, columns - 26))}</Text>
+      <Button key={`${KEY_PREFIX}set-word-remove-${index}`} plain dimColor label="✕" onPress={() => undefined} />
+    </Box>
+  ))
+  const addWord = <Button key={`${KEY_PREFIX}set-word-add`} plain dimColor label="➕ Watch a word" onPress={() => undefined} />
+  const watched = (
+    <Box flexDirection="column">
+      {wordRows}
+      {words.length < MAX_KEYWORDS && addWord}
+    </Box>
+  )
+
+  return drawSettingsView(ui, {
+    title: '⚙ Slacker settings',
+    detail: 'for every session',
+    columns,
+    rows: [
+      drawSettingRow(ui, 'Watched words', watched),
+      drawSettingRow(
+        ui,
+        'Sources',
+        <Box flexDirection="row" columnGap={2}>
+          {SOURCES.map(source => drawToggle(ui, `${KEY_PREFIX}set-source-${source}`, SOURCE_LABEL[source], on.includes(source)))}
+        </Box>
+      ),
+      drawSettingRow(ui, 'Refresh', drawChoiceRow(ui, REFRESH_CHOICES.map(choice => ({ key: `${KEY_PREFIX}set-refresh-${choice.seconds}`, label: choice.label, isOn: refresh === choice.seconds })))),
+      drawSettingRow(ui, 'Look back', drawChoiceRow(ui, DAYS_CHOICES.map(choice => ({ key: `${KEY_PREFIX}set-days-${choice.days}`, label: choice.label, isOn: days === choice.days }))))
+    ],
+    footer: [<Button key={`${KEY_PREFIX}settings-done`} variant="primary" label="Done" onPress={() => undefined} />]
+  })
 }
 
 /**
@@ -738,6 +883,7 @@ function actionButtons(ui: DockElements, state: SlackerState): JSX.Element[] {
  */
 export function drawSlacker(ui: Elements[RenderSurface], state: SlackerState, columns: number, surface: RenderSurface, dockId: string): JSX.Element {
   const { Box } = ui
+  if (state.isSettingsOpen === true) return drawSlackerSettings(ui, state, columns)
   const hasFeed = !(state.isDisconnected === true && state.items === undefined && !state.search)
 
   return (
@@ -756,5 +902,7 @@ export const slackerPanel: DockPanel = {
   description: 'Your Slack @s, DMs and thread replies: search, add to the prompt, reply',
   isBuiltIn: true,
   isOptIn: true,
-  revision: 1
+  hasSettings: true,
+  revision: 2,
+  whatsNew: 'Watched words, sources, refresh and look back are in ⚙ in the card header'
 }

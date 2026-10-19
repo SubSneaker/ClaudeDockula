@@ -100,16 +100,25 @@ function worldOf(remote: string, parts: Partial<World> = {}): World {
   return { remote, cli: () => undefined, http: () => undefined, answers: {}, fetched: [], argvs: [], stored: [], asked: [], ...parts }
 }
 
-async function tickIn(pane: { press: (args: { key: string }) => Promise<unknown> }): Promise<void> {
-  for (const key of ['dock-main-manage', 'dock-main-enable-1-gitgud', 'dock-main-manage']) await pane.press({ key })
+/** The dock puts GitGud in its main view when the session starts. */
+async function startSession($: Engine, on: On): Promise<void> {
+  on('session.start', () => ({ cwd: '/repo' }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+}
+
+/** Opens and closes Manage so the pane redraws with what the first poll has stored by now. */
+async function redraw(pane: { press: (args: { key: string }) => Promise<unknown> }): Promise<void> {
+  for (const key of ['dock-main-manage', 'dock-main-manage']) await pane.press({ key })
 }
 
 async function open($: Engine, on: On, world: World, seed: Record<string, unknown> = {}) {
   const clock = mock.clock(on, { now: NOW })
   mockWorld(on, world, seed)
+  await startSession($, on)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps() })
-  await tickIn(pane)
   await clock.settle()
+  await redraw(pane)
 
   return { pane, clock }
 }

@@ -44,6 +44,8 @@ export interface DockView {
   isMenuOpen?: boolean
   /** The ▤ Layout menu of the active view is open. */
   isLayoutOpen?: boolean
+  /** Manage asks to confirm a reset, inline, before it runs. */
+  confirm?: 'reset-layout' | 'reset-all'
   /** The bottom dock's height in rows, as the person dragged it; absent, 12 (held to what the band leaves). */
   rows?: number
   /** The id the dock's next new view takes: it only grows, so no id comes back once its view is removed. */
@@ -135,11 +137,45 @@ export interface BranchStatus {
   fileCount: number
 }
 
+/** One worktree of the repo, from `git worktree list --porcelain`. */
+export interface BranchWorktree {
+  /** Absolute path of the worktree. */
+  path: string
+  /** Absent while its HEAD is detached. */
+  branch?: string
+  /** The worktree the session is in. */
+  isCurrent: boolean
+  isBare?: boolean
+  isDetached?: boolean
+  isLocked?: boolean
+}
+
+/** Saved under `branch:settings`, except `ticketPattern`, which lives in the shared `settings` key; absent fields take the defaults noted. */
+export interface BranchSettings {
+  /** How often the status is read, in seconds; default 20. */
+  refreshSeconds?: number
+  /** How many changed files the card lists; default 5. */
+  filesShown?: number
+  /** Untracked files count and list; default shown. */
+  isUntrackedShown?: boolean
+  /** The Worktrees section shows when the repo has more than one; default shown. */
+  isWorktreesShown?: boolean
+  /** A regular expression source finding the ticket key in a branch name; absent, the default. */
+  ticketPattern?: string
+}
+
 export interface BranchState {
   status?: BranchStatus
   /** One line saying why there is no status: not a git repository, or git failed. */
   error?: string
   isRefreshing?: boolean
+  /** Every worktree of the repo; the section shows only with more than one. */
+  worktrees?: BranchWorktree[]
+  /** Why the last ticket pattern was not saved; shown in the ⚙ view. */
+  patternNote?: string
+  /** The ⚙ view is open (shared by every dock showing the panel). */
+  isSettingsOpen?: boolean
+  settings?: BranchSettings
 }
 
 // --- settings (saved by the plugin in `$.store`, asked for when a panel needs them) ---
@@ -212,8 +248,17 @@ export interface ChecksSetup {
   manager?: string
 }
 
+/** Saved under `checks:settings`. */
+export interface ChecksSettings {
+  /** A run is stopped after this many seconds: 300 or 600; default 600. */
+  timeLimitSeconds?: number
+  /** Notice when a single run finishes; default on. */
+  isNoticeOnFinish?: boolean
+}
+
 /** Every field optional, so the dock's atom starts from `{}`. */
 export interface ChecksState {
+  settings?: ChecksSettings
   /** The repo's settings were read. */
   isLoaded?: boolean
   /** The repo the settings belong to. */
@@ -241,7 +286,7 @@ export interface ActivityCall {
   name: string
   summary: string
   status: ActivityCallStatus
-  /** The subagent loop the call ran in; absent on the main loop. */
+  /** The other agent (subagent, teammate or workflow agent) the call ran in; absent on the main loop. */
   agentId?: string
 }
 
@@ -251,8 +296,18 @@ export interface ActivityFile {
   edits: number
 }
 
+/** Saved under `activity:settings`. */
+export interface ActivitySettings {
+  /** How many rows each list shows; default 5. */
+  rowsShown?: number
+  /** Calls by other agents are listed with the main loop's; default shown. */
+  isSubagentShown?: boolean
+}
+
 /** Newest first in every list. */
 export interface ActivityState {
+  isSettingsOpen?: boolean
+  settings?: ActivitySettings
   calls: ActivityCall[]
   files: ActivityFile[]
   /** The session's cwd at the last call, which paths are shown relative to. */
@@ -359,17 +414,25 @@ export interface JiraSetup {
   sites: JiraSite[]
   siteId?: string
   isLoadingSites?: boolean
-  /** The three fields below are the typed text; empty means the default. */
+  /** The two fields below are the typed text; empty means the default. */
   jql: string
   branchTemplate: string
-  ticketPattern: string
   /** Opened with ⚙ on a set up panel: the query and branch fields show. */
   isEditing?: boolean
+  /** How often the list refreshes, in seconds, as picked; absent, the saved one. */
+  refreshSeconds?: number
   /** A dim line under the form. */
   note?: string
 }
 
+/** Saved under `jira:settings`. */
+export interface JiraPanelSettings {
+  /** How often the assigned list refreshes, in seconds: 60, 120 or 300; default 120. */
+  listRefreshSeconds?: number
+}
+
 export interface JiraState {
+  panelSettings?: JiraPanelSettings
   /** The saved settings were read. */
   isSettingsLoaded?: boolean
   settings?: Settings
@@ -479,7 +542,22 @@ export interface SlackerSearch {
   error?: string
 }
 
+/** The feed sources a person can turn off; watched words have their own list. */
+export type SlackerSource = 'mention' | 'dm' | 'thread'
+
+/** Saved under `slacker:settings`; an absent field keeps today's behaviour. */
+export interface SlackerSettings {
+  /** The sources read; absent, all three. */
+  sources?: SlackerSource[]
+  /** How often the feed refreshes, in seconds: 30, 60 or 300; default 30. */
+  refreshSeconds?: number
+  /** How many days back the feed reads: 1, 3 or 7; default 7. */
+  days?: number
+}
+
 export interface SlackerState {
+  isSettingsOpen?: boolean
+  settings?: SlackerSettings
   me?: { id: string; name: string }
   items?: SlackerItem[]
   isLoading?: boolean
@@ -917,6 +995,8 @@ export interface DockulaPanelInfo {
   title: string
   icon: string
   description: string
+  /** The card's header ⚙ is drawn; pressing it sends a `settings` event. */
+  hasSettings?: boolean
 }
 
 /** One run of text on a canvas row; a `key` makes it a target the canvas hit-tests. */
@@ -948,7 +1028,7 @@ export interface DockulaDrawArgs {
  * pointer (or the focused span for a key), `from` the span a drag started on, `name` the key pressed.
  */
 export interface DockulaEvent {
-  type: 'click' | 'drop' | 'context' | 'key'
+  type: 'click' | 'drop' | 'context' | 'key' | 'settings'
   key?: string
   from?: string
   x: number

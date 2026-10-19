@@ -86,6 +86,6 @@ test('session start posts the notice for a panel missing from the stored record,
   expect(await band.find({ type: 'Text', text: /New panel: 🎫 Jira/ })).toBeDefined()
   await clock.advance(60_000)
   expect(await band.find({ type: 'Text', text: /New panel: 🎫 Jira/ })).toBeDefined()
-  expect(stored[SEEN_STORE_KEY]).toMatchObject({ jira: 2 })
+  expect(stored[SEEN_STORE_KEY]).toMatchObject({ jira: 3 })
   await band.unmount()
 })

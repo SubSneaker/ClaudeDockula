@@ -153,6 +153,7 @@ function readDock(saved: unknown): DockView | undefined {
   const name = fieldOf(saved, 'name')
   const usedAt = fieldOf(saved, 'usedAt')
   const focused = fieldOf(saved, 'focused')
+  const confirm = fieldOf(saved, 'confirm')
   const position: DockPosition = fieldOf(saved, 'position') === 'bottom' ? 'bottom' : 'right'
   const views = readViews(saved, position)
   const activeViewId = fieldOf(saved, 'activeViewId')
@@ -171,9 +172,14 @@ function readDock(saved: unknown): DockView | undefined {
     ...(typeof focused === 'string' ? { focused } : {}),
     ...(fieldOf(saved, 'isMenuOpen') === true ? { isMenuOpen: true } : {}),
     ...(fieldOf(saved, 'isLayoutOpen') === true ? { isLayoutOpen: true } : {}),
+    ...(isResetConfirm(confirm) ? { confirm } : {}),
     ...(rows === undefined ? {} : { rows }),
     ...(nextViewId === undefined ? {} : { nextViewId: Math.max(nextViewId, highestViewId(views) + 1) }),
   }
+}
+
+function isResetConfirm(value: unknown): value is NonNullable<DockView['confirm']> {
+  return value === 'reset-layout' || value === 'reset-all'
 }
 
 function highestViewId(views: readonly DockViewTab[]): number {
@@ -339,7 +345,7 @@ export function renamePanelIds(layout: DockLayout, renames: readonly (readonly [
 
 /** A dock as a new session finds it: its panel cards in view from the top, nothing focused, no menu open. */
 function freshView(dock: DockView): DockView {
-  const { focused: _focused, isMenuOpen: _isMenuOpen, isLayoutOpen: _isLayoutOpen, ...rest } = dock
+  const { focused: _focused, isMenuOpen: _isMenuOpen, isLayoutOpen: _isLayoutOpen, confirm: _confirm, ...rest } = dock
 
   return { ...rest, view: 'panels' }
 }
@@ -470,13 +476,13 @@ export function touchDock(layout: DockLayout, dockId: string): DockLayout {
 
 /** The dock showing `view`, open, with no panel in focus and its menu closed: only a band tab brings a card into view. */
 export function showView(dock: DockView, view: DockView['view']): DockView {
-  const { focused: _focused, isMenuOpen: _isMenuOpen, ...rest } = dock
+  const { focused: _focused, isMenuOpen: _isMenuOpen, confirm: _confirm, ...rest } = dock
 
   return { ...rest, view, isOpen: true }
 }
 
 export function closeView(dock: DockView): DockView {
-  const { focused: _focused, isMenuOpen: _isMenuOpen, ...rest } = dock
+  const { focused: _focused, isMenuOpen: _isMenuOpen, confirm: _confirm, ...rest } = dock
 
   return { ...rest, isOpen: false }
 }
@@ -1075,6 +1081,11 @@ const DOCK_ACTIONS = [
   'add-panel',
   'layout',
   'add-view',
+  'reset-layout',
+  'reset-all',
+  'reset-layout-yes',
+  'reset-all-yes',
+  'reset-no',
 ] as const
 const VIEW_ACTIONS = ['remove-view', 'dir-column', 'dir-row'] as const
 const PANEL_ACTIONS = ['toggle', 'settings', 'up', 'down', 'enable', 'drop', 'width-auto', 'width-third', 'width-half', 'width-full'] as const
@@ -1191,7 +1202,7 @@ export function cardKey(dockId: string, panelId: string): string {
  */
 export function parseDockKey(key: string): DockPress | ViewActionPress | PanelPress | ViewPress | undefined {
   const pattern =
-    /^dock-(main|\d+)-(new-right|new-bottom|add-panel|add-view|remove-view|dir-column|dir-row|width-[a-z]+|[a-z]+)(?:-(.+))?$/
+    /^dock-(main|\d+)-(new-right|new-bottom|add-panel|add-view|reset-layout-yes|reset-all-yes|reset-layout|reset-all|reset-no|remove-view|dir-column|dir-row|width-[a-z]+|[a-z]+)(?:-(.+))?$/
   const [, dockId, action, rest] = pattern.exec(key) ?? []
   if (dockId === undefined) return undefined
   if (action === 'view') return isViewId(rest) ? { dockId, action, viewId: rest } : undefined

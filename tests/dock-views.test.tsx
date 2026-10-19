@@ -348,9 +348,6 @@ test('the view tabs: ➕ View opens an empty view in Manage, a tab switches view
 
   await pane.press({ key: 'dock-main-view-1' })
   expect(await pane.find({ key: 'dock-main-card-branch' })).toBeDefined()
-  await pane.press({ key: 'dock-main-manage' })
-  await pane.press({ key: 'dock-main-enable-1-jira' })
-  await pane.press({ key: 'dock-main-manage' })
   await band.press({ key: 'dock-tab-jira' })
   expect(await pane.find({ key: 'dock-main-card-jira' })).toBeDefined()
   expect(await pane.find({ key: 'dock-main-card-branch' })).toBeUndefined()
@@ -387,9 +384,12 @@ test('a long panel title is cut to its section, leaving the controls', async ($,
   mock.store(on)
   mockPanes(on)
   const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(24) })
+  await pane.press({ key: 'dock-main-manage' })
+  await pane.press({ key: 'dock-main-enable-1-jira' })
+  await pane.press({ key: 'dock-main-manage' })
   const toggle = await pane.find({ key: 'dock-main-toggle-jira' })
-  expect(toggle?.props.label).toBe('▾ 🎫 Jira · assigne…')
-  expect(cellWidth(String(toggle?.props.label))).toBe(24 - 3 - 1)
+  expect(toggle?.props.label).toBe('▾ 🎫 Jira · assig…')
+  expect(cellWidth(String(toggle?.props.label))).toBe(24 - 3 - 1 - 2)
   expect(await pane.find({ key: 'dock-main-up-1-jira' })).toBeDefined()
   await pane.unmount()
 })
@@ -451,6 +451,9 @@ test('the Layout card words its choices compactly in a narrow pane, so no row pa
   for (const columns of [56, 30]) {
     const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(columns) })
     if (columns === 56) {
+      await pane.press({ key: 'dock-main-manage' })
+      await pane.press({ key: 'dock-main-enable-1-jira' })
+      await pane.press({ key: 'dock-main-manage' })
       await pane.press({ key: 'dock-main-layout' })
       await pane.press({ key: 'dock-main-dir-row-1' })
     }

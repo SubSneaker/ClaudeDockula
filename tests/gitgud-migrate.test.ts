@@ -57,7 +57,7 @@ test('the store plan moves settings and docs once, drops the caches, and never o
   expect(legacyDocDirOf('/c/', undefined)).toBe('/c/claudedockula/github')
 })
 
-test('session start moves the old keys once; a second start writes and deletes nothing', async ($, on) => {
+test('session start moves the old keys once; a second start writes and deletes nothing', { timeoutMs: 20_000 }, async ($, on) => {
   const sets: [string, unknown][] = []
   const deletes: string[] = []
   mock.clock(on, { now: Date.parse('2026-10-19T12:00:00Z') })
@@ -81,6 +81,10 @@ test('session start moves the old keys once; a second start writes and deletes n
   on('session.root', () => ({ value: '/repo' }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('ui.panes', () => ({ value: [] }))
+  // GitGud is in the dock now and reads on start: every command and lookup answers at once.
+  on('command.list', () => ({ value: [] }))
+  on('fs.exists', () => ({ value: false }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   expect(sets).toContainEqual(['gitgud:settings', { isHaikuOn: false }])
@@ -121,7 +125,7 @@ test('from no marker one plan moves the old keys and gives hosts; odd values pas
   expect(plan.marker).toBe(2)
 })
 
-test('a crash between the deletes and the marker leaves the marker out, so the next start finishes the move', async ($, on) => {
+test('a crash between the deletes and the marker leaves the marker out, so the next start finishes the move', { timeoutMs: 20_000 }, async ($, on) => {
   const sets: [string, unknown][] = []
   const deletes: string[] = []
   let isDeleteFailing = true
@@ -143,6 +147,10 @@ test('a crash between the deletes and the marker leaves the marker out, so the n
   on('session.root', () => ({ value: '/repo' }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('ui.panes', () => ({ value: [] }))
+  // GitGud is in the dock now and reads on start: every command and lookup answers at once.
+  on('command.list', () => ({ value: [] }))
+  on('fs.exists', () => ({ value: false }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   expect(sets).toEqual([])
