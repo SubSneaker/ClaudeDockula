@@ -40,9 +40,9 @@ move(${at(moveCol + 2, moveRow).join(', ')}, 4.3, 0.7);
 click(5.2);
 swap(L('confirm'), L('moved'), 5.35);
 tl.to(cur, { opacity: 0, duration: 0.3 }, 8.0);
-// Back to the start for the loop: the first frame under the last one, which fades away.
-on(L('rest'), 9.3);
-tl.to(L('moved'), { opacity: 0, duration: 0.5 }, 9.3);
+// Back to the start for the loop: the last frame fades out, then the first fades in.
+tl.to(L('moved'), { opacity: 0, duration: 0.25 }, 9.3);
+tl.fromTo(L('rest'), { opacity: 0 }, { opacity: 1, duration: 0.25, immediateRender: false }, 9.6);
 `
   return {
     title: 'Jira board drag',

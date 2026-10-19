@@ -43,8 +43,8 @@ off(L('ask-off'), 8.35);
 on(L('after'), 8.35);
 swap(L('after'), L('done'), 10.0);
 tl.to(cur, { opacity: 0, duration: 0.3 }, 9.6);
-on(L('0'), 11.3);
-tl.to(L('done'), { opacity: 0, duration: 0.5 }, 11.3);
+tl.to(L('done'), { opacity: 0, duration: 0.25 }, 11.3);
+tl.fromTo(L('0'), { opacity: 0 }, { opacity: 1, duration: 0.25, immediateRender: false }, 11.6);
 `
   return {
     title: 'GitGud background review',

@@ -49,6 +49,17 @@ export function rowHtml(runs) {
   return `<div class="r">${inner || ' '}</div>`
 }
 
+/**
+ * Spaces inside terminal rows written as no-break spaces (U+00A0), so the rows can use `white-space: nowrap` instead of `pre`.
+ * A code formatter that re-indents or re-wraps the HTML then only adds collapsible whitespace and cannot shift a row.
+ */
+export function protectRows(html) {
+  return html.replace(/(<div class="(?:r|rule)\b[^"]*"[^>]*>)([\s\S]*?)(<\/div>)/g, (_, open, inner, close) => {
+    const text = inner.split(/(<[^>]+>)/).map(part => (part.startsWith('<') ? part : part.replace(/ /g, '\u00a0'))).join('')
+    return `${open}${text}${close}`
+  })
+}
+
 export function rowsHtml(rows) {
   return rows.map(runs => rowHtml(runs)).join('')
 }

@@ -41,7 +41,7 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: var(-
 }
 .dots { position: absolute; left: 14px; top: 10px; display: flex; gap: 8px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; background: #3a3b42; }
-.r { height: 20px; white-space: pre; overflow: hidden; }
+.r { height: 20px; white-space: nowrap; overflow: hidden; }
 .w1, .w2 { display: inline-block; font-style: normal; text-align: center; vertical-align: top; }
 .w1 { width: 9.6px; font-variant-emoji: text; } .w2 { width: 19.2px; font-size: 14px; }
 .b { font-weight: 700; } .d { opacity: 0.55; } .u { text-decoration: underline; text-underline-offset: 3px; }
@@ -50,7 +50,7 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: var(-
 .c-permission { color: var(--c-permission); } .c-subtle { color: var(--c-subtle); } .c-inactive { color: var(--c-inactive); }
 .i { background: var(--fg); color: var(--bg); }
 .i.c-suggestion { background: var(--c-suggestion); color: var(--bg); }
-.rule { height: 20px; overflow: hidden; white-space: pre; opacity: 0.55; }
+.rule { height: 20px; overflow: hidden; white-space: nowrap; opacity: 0.55; }
 .cursor { position: absolute; left: 0; top: 0; width: 22px; height: 26px; opacity: 0; }
 .cursor svg { display: block; width: 22px; height: 26px; }
 .layer { position: absolute; left: 0; top: 0; }
@@ -87,14 +87,14 @@ window.__timelines["${id}"] = tl;
 
 /** The Slacker card, a still: its rows written into docs/index.html between the slacker markers. */
 async function writeSlackerStill() {
-  const { findRow, frame, rowsHtml } = await import(join(SITE, 'tools', 'html.mjs'))
+  const { findRow, frame, protectRows, rowsHtml } = await import(join(SITE, 'tools', 'html.mjs'))
   const rows = frame('slacker').rows
   const card = rows.slice(findRow(rows, '💬 Slacker') - 1)
   const page = join(SITE, '..', 'docs', 'index.html')
   const html = readFileSync(page, 'utf8')
   const markers = /(<!-- slacker:start -->)[\s\S]*?(<!-- slacker:end -->)/
   if (!markers.test(html)) throw new Error('docs/index.html has no slacker:start / slacker:end markers')
-  const next = html.replace(markers, `$1\n${rowsHtml(card)}\n$2`)
+  const next = html.replace(markers, `$1\n${protectRows(rowsHtml(card))}\n$2`)
   writeFileSync(page, next)
   console.log(`docs/index.html  Slacker still, ${card.length} rows`)
 }
@@ -104,7 +104,8 @@ mkdirSync(OUT, { recursive: true })
 for (const name of wanted.length > 0 ? wanted : ALL) {
   const { build } = await import(join(SITE, 'comps', `${name}.mjs`))
   const comp = build()
-  const html = doc({ id: name, ...comp })
+  const { protectRows } = await import(join(SITE, 'tools', 'html.mjs'))
+  const html = doc({ id: name, ...comp, body: protectRows(comp.body) })
   writeFileSync(join(OUT, `${name}.html`), html)
   console.log(`docs/assets/comps/${name}.html  ${(html.length / 1024).toFixed(1)} KB`)
 }

@@ -1,1004 +1,176 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=1280, height=760" />
-    <title>Band and dock</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <style>
-      @font-face {
-        font-family: "JetBrains Mono";
-        font-weight: 400;
-        src: url("fonts/jetbrains-mono-400.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "JetBrains Mono";
-        font-weight: 700;
-        src: url("fonts/jetbrains-mono-700.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Term Symbols";
-        src:
-          local("Apple Symbols"), local("Segoe UI Symbol"), local("DejaVu Sans");
-      }
-      @font-face {
-        font-family: "Term Emoji";
-        src:
-          local("Apple Color Emoji"), local("Segoe UI Emoji"),
-          local("Noto Color Emoji");
-      }
-      :root {
-        --bg: #141519;
-        --fg: #e8e6e3;
-        --bar: #1c1d22;
-        --edge: #2a2b31;
-        --c-success: #4eba65;
-        --c-error: #ff6b80;
-        --c-warning: #ffc107;
-        --c-suggestion: #b1b9f9;
-        --c-claude: #d77757;
-        --c-merged: #af87ff;
-        --c-permission: #b1b9f9;
-        --c-subtle: #6b6b70;
-        --c-inactive: #999999;
-      }
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: var(--bg);
-      }
-      #root {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: var(--bg);
-        color: var(--fg);
-        font-family: "JetBrains Mono", "Term Symbols", "Term Emoji", monospace;
-        font-size: 16px;
-        line-height: 20px;
-        font-variant-ligatures: none;
-        -webkit-font-smoothing: antialiased;
-      }
-      .scene {
-        position: absolute;
-        inset: 0;
-      }
-      .bar {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        height: 30px;
-        background: var(--bar);
-        border-bottom: 1px solid var(--edge);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: #8b8b92;
-      }
-      .dots {
-        position: absolute;
-        left: 14px;
-        top: 10px;
-        display: flex;
-        gap: 8px;
-      }
-      .dots i {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #3a3b42;
-      }
-      .r {
-        height: 20px;
-        white-space: pre;
-        overflow: hidden;
-      }
-      .w1,
-      .w2 {
-        display: inline-block;
-        font-style: normal;
-        text-align: center;
-        vertical-align: top;
-      }
-      .w1 {
-        width: 9.6px;
-        font-variant-emoji: text;
-      }
-      .w2 {
-        width: 19.2px;
-        font-size: 14px;
-      }
-      .b {
-        font-weight: 700;
-      }
-      .d {
-        opacity: 0.55;
-      }
-      .u {
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-      .c-success {
-        color: var(--c-success);
-      }
-      .c-error {
-        color: var(--c-error);
-      }
-      .c-warning {
-        color: var(--c-warning);
-      }
-      .c-suggestion {
-        color: var(--c-suggestion);
-      }
-      .c-claude {
-        color: var(--c-claude);
-      }
-      .c-merged {
-        color: var(--c-merged);
-      }
-      .c-permission {
-        color: var(--c-permission);
-      }
-      .c-subtle {
-        color: var(--c-subtle);
-      }
-      .c-inactive {
-        color: var(--c-inactive);
-      }
-      .i {
-        background: var(--fg);
-        color: var(--bg);
-      }
-      .i.c-suggestion {
-        background: var(--c-suggestion);
-        color: var(--bg);
-      }
-      .rule {
-        height: 20px;
-        overflow: hidden;
-        white-space: pre;
-        opacity: 0.55;
-      }
-      .cursor {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 22px;
-        height: 26px;
-        opacity: 0;
-      }
-      .cursor svg {
-        display: block;
-        width: 22px;
-        height: 26px;
-      }
-      .layer {
-        position: absolute;
-        left: 0;
-        top: 0;
-      }
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, height=760">
+<title>Band and dock</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url('fonts/jetbrains-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; src: url('fonts/jetbrains-mono-700.woff2') format('woff2'); }
+@font-face { font-family: 'Term Symbols'; src: local('Apple Symbols'), local('Segoe UI Symbol'), local('DejaVu Sans'); }
+@font-face { font-family: 'Term Emoji'; src: local('Apple Color Emoji'), local('Segoe UI Emoji'), local('Noto Color Emoji'); }
+:root {
+  --bg: #141519; --fg: #e8e6e3; --bar: #1c1d22; --edge: #2a2b31;
+  --c-success: #4eba65; --c-error: #ff6b80; --c-warning: #ffc107; --c-suggestion: #b1b9f9;
+  --c-claude: #d77757; --c-merged: #af87ff; --c-permission: #b1b9f9; --c-subtle: #6b6b70; --c-inactive: #999999;
+}
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); }
+#root {
+  position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
+  font-family: 'JetBrains Mono', 'Term Symbols', 'Term Emoji', monospace;
+  font-size: 16px; line-height: 20px; font-variant-ligatures: none; -webkit-font-smoothing: antialiased;
+}
+.scene { position: absolute; inset: 0; }
+.bar {
+  position: absolute; left: 0; right: 0; top: 0; height: 30px; background: var(--bar); border-bottom: 1px solid var(--edge);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: #8b8b92;
+}
+.dots { position: absolute; left: 14px; top: 10px; display: flex; gap: 8px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: #3a3b42; }
+.r { height: 20px; white-space: nowrap; overflow: hidden; }
+.w1, .w2 { display: inline-block; font-style: normal; text-align: center; vertical-align: top; }
+.w1 { width: 9.6px; font-variant-emoji: text; } .w2 { width: 19.2px; font-size: 14px; }
+.b { font-weight: 700; } .d { opacity: 0.55; } .u { text-decoration: underline; text-underline-offset: 3px; }
+.c-success { color: var(--c-success); } .c-error { color: var(--c-error); } .c-warning { color: var(--c-warning); }
+.c-suggestion { color: var(--c-suggestion); } .c-claude { color: var(--c-claude); } .c-merged { color: var(--c-merged); }
+.c-permission { color: var(--c-permission); } .c-subtle { color: var(--c-subtle); } .c-inactive { color: var(--c-inactive); }
+.i { background: var(--fg); color: var(--bg); }
+.i.c-suggestion { background: var(--c-suggestion); color: var(--bg); }
+.rule { height: 20px; overflow: hidden; white-space: nowrap; opacity: 0.55; }
+.cursor { position: absolute; left: 0; top: 0; width: 22px; height: 26px; opacity: 0; }
+.cursor svg { display: block; width: 22px; height: 26px; }
+.layer { position: absolute; left: 0; top: 0; }
 
-      .term {
-        position: absolute;
-        left: 20px;
-        top: 44px;
-        width: 1238.4px;
-        height: 700px;
-      }
-      .left {
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 700px;
-        width: 1238.4px;
-        overflow: hidden;
-      }
-      .transcript {
-        position: absolute;
-        left: 0;
-        top: 0;
-        right: 0;
-      }
-      .bottom {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-      }
-      .band {
-        position: relative;
-        height: 20px;
-      }
-      .band-row {
-        position: absolute;
-        right: 0;
-        top: 0;
-        opacity: 0;
-      }
-      .sep {
-        position: absolute;
-        left: 691.2px;
-        top: 0;
-        width: 9.6px;
-        opacity: 0;
-      }
-      .sep .r {
-        opacity: 0.35;
-      }
-      .dock {
-        position: absolute;
-        left: 700.8px;
-        top: 0;
-        width: 537.6px;
-        height: 700px;
-        overflow: hidden;
-        opacity: 0;
-      }
-      .hdr {
-        position: relative;
-        height: 20px;
-      }
-      .hdr .alt {
-        position: absolute;
-        left: 0;
-        top: 0;
-        right: 0;
-        opacity: 0;
-      }
-      .hdr .alt.on {
-        opacity: 1;
-      }
-      .hdr .main.off {
-        opacity: 0;
-      }
-      .body {
-        overflow: hidden;
-      }
-      .body.shut {
-        height: 0;
-      }
-      .tr {
-        opacity: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <div
-      id="root"
-      data-composition-id="hero"
-      data-start="0"
-      data-width="1280"
-      data-height="760"
-      data-duration="16"
-    >
-      <div id="hero-scene" class="scene">
-        <div class="bar">
-          <div class="dots"><i></i><i></i><i></i></div>
-          claude · ~/code/webapp
-        </div>
-        <div class="term">
-          <div class="left" id="hero-left">
-            <div class="transcript">
-              <div class="r tr" id="hero-tr-0">
-                <span class="d"
-                  >&gt; Stream the CSV export instead of building it in
-                  memory</span
-                >
-              </div>
-              <div class="r tr" id="hero-tr-1"></div>
-              <div class="r tr" id="hero-tr-2">
-                ● I'll switch the export to a streamed writer and keep the
-              </div>
-              <div class="r tr" id="hero-tr-3">
-                toast's progress in sync with it.
-              </div>
-              <div class="r tr" id="hero-tr-4"></div>
-              <div class="r tr" id="hero-tr-5">
-                <span class="c-success">●</span>
-                <span class="b">Read</span>(src/export/csv.ts)
-              </div>
-              <div class="r tr" id="hero-tr-6">
-                <span class="d"> <i class="w1">⎿</i> Read 84 lines</span>
-              </div>
-              <div class="r tr" id="hero-tr-7"></div>
-              <div class="r tr" id="hero-tr-8">
-                <span class="c-success">●</span>
-                <span class="b">Update</span>(src/export/csv.ts)
-              </div>
-              <div class="r tr" id="hero-tr-9">
-                <span class="d">
-                  <i class="w1">⎿</i> Updated src/export/csv.ts with 18
-                  additions and 9 removals</span
-                >
-              </div>
-              <div class="r tr" id="hero-tr-10"></div>
-              <div class="r tr" id="hero-tr-11">
-                <span class="c-success">●</span>
-                <span class="b">Update</span>(src/export/ExportButton.tsx)
-              </div>
-              <div class="r tr" id="hero-tr-12">
-                <span class="d">
-                  <i class="w1">⎿</i> Updated src/export/ExportButton.tsx with 4
-                  additions</span
-                >
-              </div>
-              <div class="r tr" id="hero-tr-13"></div>
-              <div class="r tr" id="hero-tr-14">
-                <span class="c-success">●</span>
-                <span class="b">Write</span>(src/export/csv.test.ts)
-              </div>
-              <div class="r tr" id="hero-tr-15">
-                <span class="d">
-                  <i class="w1">⎿</i> Wrote 41 lines to
-                  src/export/csv.test.ts</span
-                >
-              </div>
-              <div class="r tr" id="hero-tr-16"></div>
-              <div class="r tr" id="hero-tr-17">
-                <span class="c-success">●</span>
-                <span class="b">Bash</span>(pnpm test export)
-              </div>
-              <div class="r tr" id="hero-tr-18">
-                <span class="d"> <i class="w1">⎿</i> Tests 12 passed (12)</span>
-              </div>
-              <div class="r tr" id="hero-tr-19"></div>
-              <div class="r tr" id="hero-tr-20">
-                ● Done. Exports now stream in 1,000-row chunks, so a large
-              </div>
-              <div class="r tr" id="hero-tr-21">
-                report no longer stalls the tab.
-              </div>
-            </div>
-            <div class="bottom">
-              <div class="band">
-                <div class="band-row" id="hero-band-0">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 0
-                    <i class="w2">🐙</i> <i class="w1">…︎</i>
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-1">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 1
-                    <i class="w2">🐙</i> <i class="w1">…︎</i>
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-2">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 2
-                    <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-3">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 3
-                    <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-4">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 4
-                    <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-5">
-                  <div class="r">
-                    <i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 5
-                    <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-                <div class="band-row" id="hero-band-open">
-                  <div class="r">
-                    <span class="b u"
-                      ><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3</span
-                    >
-                    <i class="w2">✅</i> 4/4 <i class="w2">🕘</i> 5
-                    <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine
-                    <i class="w2">🎫</i> In Dev <i class="w2">➕</i>
-                  </div>
-                </div>
-              </div>
-              <div class="rule" data-layout-allow-overflow>
-                ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-              </div>
-              <div class="r">
-                <span class="d">&gt; </span><span class="i"> </span>
-              </div>
-              <div class="rule" data-layout-allow-overflow>
-                ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-              </div>
-              <div class="r d">? for shortcuts</div>
-            </div>
-          </div>
-          <div class="sep" id="hero-sep">
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-            <div class="r">│</div>
-          </div>
-          <div class="dock" id="hero-dock">
-            <div class="r">
-              <span class="d"><i class="w1">⇄︎</i> Bottom</span>
-              <i class="w1">▤︎</i> Layout <i class="w1">⚙︎</i> Manage
-              <i class="w2">➕</i> Dock <i class="w1">✕︎</i> Close
-            </div>
-            <div class="r"></div>
-            <div class="r">
-              <span class="b u">View 1</span>
-              <span class="d"><i class="w2">➕</i> View</span>
-            </div>
-            <div class="card">
-              <div class="r">
-                <span class="d"
-                  >────────────────────────────────────────────────────────</span
-                >
-              </div>
-              <div class="hdr">
-                <div class="main" id="hero-h0-open">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▾︎</i> <i class="w2">🌿</i> Branch
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-                <div class="alt" id="hero-h0-closed">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▸︎</i> <i class="w2">🌿</i> Branch
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-              </div>
-              <div class="body" id="hero-b0">
-                <div class="r"><span class="b">ABC-123/csv-export</span></div>
-                <div class="r">
-                  <span class="d"><i class="w1">↑︎</i>2 ahead of origin</span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b"
-                    >1 staged <i class="w1">·︎</i> 1 modified
-                    <i class="w1">·︎</i> 1 untracked</span
-                  >
-                </div>
-                <div class="r">
-                  <span class="c-success"> </span
-                  ><span class="c-error">M</span> csv.ts<span class="d">
-                    src/export</span
-                  >
-                </div>
-                <div class="r">
-                  <span class="c-success">M</span
-                  ><span class="c-error"> </span> ExportButton.tsx<span
-                    class="d"
-                  >
-                    src/export</span
-                  >
-                </div>
-                <div class="r">
-                  <span class="d">?? </span>csv.test.ts<span class="d">
-                    src/export</span
-                  >
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="d"><i class="w1">↻︎</i> Refresh</span>
-                </div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="r">
-                <span class="d"
-                  >────────────────────────────────────────────────────────</span
-                >
-              </div>
-              <div class="hdr">
-                <div class="main" id="hero-h1-open">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▾︎</i> <i class="w2">✅</i> Checks
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-                <div class="alt" id="hero-h1-closed">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▸︎</i> <i class="w2">✅</i> Checks
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-              </div>
-              <div class="body" id="hero-b1">
-                <div class="r">
-                  <span class="b">Types</span>
-                  <span class="c-success"><i class="w1">✔︎</i> passed</span
-                  ><span class="d"> &lt;1s</span> [ Run ]
-                </div>
-                <div class="r">
-                  <span class="b">Lint</span>
-                  <span class="c-success"><i class="w1">✔︎</i> passed</span
-                  ><span class="d"> &lt;1s</span> [ Run ]
-                </div>
-                <div class="r">
-                  <span class="b">Unit tests</span>
-                  <span class="c-success"><i class="w1">✔︎</i> passed</span
-                  ><span class="d"> &lt;1s</span> [ Run ]
-                </div>
-                <div class="r">
-                  <span class="b">Build</span>
-                  <span class="c-success"><i class="w1">✔︎</i> passed</span
-                  ><span class="d"> &lt;1s</span> [ Run ]
-                </div>
-                <div class="r"></div>
-                <div class="r">[ <span class="c-claude">Run all</span> ]</div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="r">
-                <span class="d"
-                  >────────────────────────────────────────────────────────</span
-                >
-              </div>
-              <div class="hdr">
-                <div class="main off" id="hero-h2-open">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▾︎</i> <i class="w2">🕘</i> Activity
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-                <div class="alt on" id="hero-h2-closed">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▸︎</i> <i class="w2">🕘</i> Activity
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-              </div>
-              <div class="body shut" id="hero-b2">
-                <div class="r">
-                  <span class="b">Files edited</span
-                  ><span class="b d"> <i class="w1">·︎</i> 3</span>
-                </div>
-                <div class="r">
-                  csv.test.ts<span class="d"> src/export</span>
-                  <span class="d"> <i class="w1">×︎</i>1</span>
-                </div>
-                <div class="r">
-                  ExportButton.tsx<span class="d"> src/export</span>
-                  <span class="d"> <i class="w1">×︎</i>1</span>
-                </div>
-                <div class="r">
-                  csv.ts<span class="d"> src/export</span>
-                  <span class="d"> <i class="w1">×︎</i>1</span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b">Recent calls</span
-                  ><span class="b d"> <i class="w1">·︎</i> 5</span>
-                </div>
-                <div class="r">
-                  <span class="c-success"><i class="w1">✓︎</i> </span
-                  ><span class="b">Bash </span>
-                  <span class="d">pnpm test export</span>
-                </div>
-                <div class="r">
-                  <span class="c-success"><i class="w1">✓︎</i> </span
-                  ><span class="b">Write</span>
-                  <span class="d">src/export/csv.test.ts</span>
-                </div>
-                <div class="r">
-                  <span class="c-success"><i class="w1">✓︎</i> </span
-                  ><span class="b">Edit </span>
-                  <span class="d">src/export/ExportButton.tsx</span>
-                </div>
-                <div class="r">
-                  <span class="c-success"><i class="w1">✓︎</i> </span
-                  ><span class="b">Edit </span>
-                  <span class="d">src/export/csv.ts</span>
-                </div>
-                <div class="r">
-                  <span class="c-success"><i class="w1">✓︎</i> </span
-                  ><span class="b">Read </span>
-                  <span class="d">src/export/csv.ts</span>
-                </div>
-                <div class="r"></div>
-                <div class="r"><span class="d">Clear</span></div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="r">
-                <span class="d"
-                  >────────────────────────────────────────────────────────</span
-                >
-              </div>
-              <div class="hdr">
-                <div class="main off" id="hero-h3-open">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▾︎</i> <i class="w2">🐙</i> GitGud
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-                <div class="alt on" id="hero-h3-closed">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▸︎</i> <i class="w2">🐙</i> GitGud
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                    <span class="d"><i class="w1">↓︎</i></span>
-                  </div>
-                </div>
-              </div>
-              <div class="body shut" id="hero-b3">
-                <div class="r">
-                  <span class="b u"><i class="w2">👀</i> To review 3</span>
-                  <span class="d"><i class="w2">🙋</i> Mine 1</span>
-                  <span class="d"><i class="w2">📌</i> Issues 0</span>
-                  <span class="d"><i class="w2">🔍</i> Search</span>
-                </div>
-                <div class="r">
-                  <span class="d">Repos </span
-                  ><span class="b">acme/webapp</span>
-                  <span class="b u">This</span>
-                  <span class="d"><i class="w1">·︎</i></span>
-                  <span class="d">All</span>
-                  <span class="d"><i class="w2">➕</i></span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <i class="w2">✅</i>
-                  <span class="b c-suggestion">#2086</span> ABC-131 / Date range
-                  picker 3h<span class="d"> <i class="w1">⋯︎</i></span>
-                </div>
-                <div class="r">
-                  <span class="d">
-                    grace <i class="w1">·︎</i> <i class="w2">💬</i> 2
-                    <i class="w1">·︎</i> <i class="w2">🎫</i> In Review</span
-                  >
-                </div>
-                <div class="r">
-                  <i class="w2">🟡</i>
-                  <span class="b c-suggestion">#2090</span> Fix sidebar overflow
-                  on narrow scre<i class="w1">…︎</i> 3h<span class="d">
-                    <i class="w1">⋯︎</i></span
-                  >
-                </div>
-                <div class="r"><span class="d"> linus</span></div>
-                <div class="r">
-                  <i class="w2">✅</i>
-                  <span class="b c-suggestion">#2093</span> Bump the chart
-                  library to v5 3h<span class="d"> <i class="w1">⋯︎</i></span>
-                </div>
-                <div class="r"><span class="d"> ada</span></div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b"><i class="w2">🌿</i> This branch</span
-                  ><span class="b d">
-                    <i class="w1">·︎</i> ABC-123/csv-export</span
-                  >
-                </div>
-                <div class="r">
-                  <i class="w2">📝</i> PR description
-                  <i class="w2">🧾</i> Commit summary
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="d"><i class="w1">↻︎</i> Refresh</span>
-                </div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="r">
-                <span class="d"
-                  >────────────────────────────────────────────────────────</span
-                >
-              </div>
-              <div class="hdr">
-                <div class="main off" id="hero-h4-open">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▾︎</i> <i class="w2">🎫</i> Jira
-                      <i class="w1">·︎</i> assigned to me
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                  </div>
-                </div>
-                <div class="alt on" id="hero-h4-closed">
-                  <div class="r">
-                    <span class="b"
-                      ><i class="w1">▸︎</i> <i class="w2">🎫</i> Jira
-                      <i class="w1">·︎</i> assigned to me
-                    </span>
-                    <span class="d"><i class="w1">⚙︎</i></span>
-                    <span class="d"><i class="w1">↑︎</i></span>
-                  </div>
-                </div>
-              </div>
-              <div class="body shut" id="hero-b4">
-                <div class="r">
-                  <span class="d"> Board </span
-                  ><span class="b">Web Board <i class="w1">·︎</i> kanban</span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b">TO DO</span><span class="d"> (2)</span>
-                </div>
-                <div class="r">
-                  <i class="w1">▸︎</i>
-                  <span class="b c-suggestion">ABC-140</span> Remember the last
-                  export format <span class="d"> <i class="w1">⋯︎</i></span>
-                </div>
-                <div class="r">
-                  <i class="w1">▸︎</i>
-                  <span class="b c-suggestion">ABC-137</span> Empty state for
-                  saved views <span class="d"> <i class="w1">⋯︎</i></span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b">IN DEV</span><span class="d"> (1)</span>
-                </div>
-                <div class="r">
-                  <i class="w1">▾︎</i> <span class="b c-suggestion">ABC-123</span
-                  ><span class="c-warning"> <i class="w1">★︎</i></span> Stream
-                  large CSV exports
-                  <span class="d">
-                    #2079 <i class="w2">✅</i> <i class="w2">👍</i>
-                    <i class="w1">⋯︎</i></span
-                  >
-                </div>
-                <div class="r">
-                  <span class="d"> Status </span><span class="b">In Dev</span>
-                </div>
-                <div class="r">
-                  <span class="d"> PR </span
-                  ><span class="b"
-                    >#2079 <i class="w2">✅</i> <i class="w2">👍</i></span
-                  >
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b">IN REVIEW</span><span class="d"> (1)</span>
-                </div>
-                <div class="r">
-                  <i class="w1">▸︎</i>
-                  <span class="b c-suggestion">ABC-131</span> Date range picker
-                  for reports
-                  <span class="d">
-                    #2086 <i class="w2">✅</i> <i class="w1">⋯︎</i></span
-                  >
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="b">DONE</span
-                  ><span class="d"> (1) <i class="w1">▸︎</i></span>
-                </div>
-                <div class="r"></div>
-                <div class="r">
-                  <span class="d"><i class="w1">↻︎</i> Refresh</span>
-                  <span class="d"><i class="w1">↗︎</i> Open ABC-123</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="cursor" id="hero-cur">
-          <svg viewBox="0 0 22 26" aria-hidden="true">
-            <path
-              d="M2 2 L2 21 L7 16.5 L10.6 24 L14 22.4 L10.5 15 L17.5 15 Z"
-              fill="#f4f4f4"
-              stroke="#111"
-              stroke-width="1.6"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-      </div>
+.term { position: absolute; left: 20px; top: 44px; width: 1238.4px; height: 700px; }
+.left { position: absolute; left: 0; top: 0; height: 700px; width: 1238.4px; overflow: hidden; }
+.transcript { position: absolute; left: 0; top: 0; right: 0; }
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; }
+.band { position: relative; height: 20px; }
+.band-row { position: absolute; right: 0; top: 0; opacity: 0; }
+.sep { position: absolute; left: 691.2px; top: 0; width: 9.6px; opacity: 0; }
+.sep .r { opacity: 0.35; }
+.dock { position: absolute; left: 700.8px; top: 0; width: 537.6px; height: 700px; overflow: hidden; opacity: 0; }
+.hdr { position: relative; height: 20px; }
+.hdr .alt { position: absolute; left: 0; top: 0; right: 0; opacity: 0; }
+.hdr .alt.on { opacity: 1; }
+.hdr .main.off { opacity: 0; }
+.body { overflow: hidden; }
+.body.shut { height: 0; }
+.tr { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="hero" data-start="0" data-width="1280" data-height="760" data-duration="16">
+<div id="hero-scene" class="scene">
+
+<div class="bar"><div class="dots"><i></i><i></i><i></i></div>claude · ~/code/webapp</div>
+<div class="term">
+  <div class="left" id="hero-left">
+    <div class="transcript"><div class="r tr" id="hero-tr-0"><span class="d">&gt; Stream the CSV export instead of building it in memory</span></div><div class="r tr" id="hero-tr-1"> </div><div class="r tr" id="hero-tr-2">● I'll switch the export to a streamed writer and keep the</div><div class="r tr" id="hero-tr-3">  toast's progress in sync with it.</div><div class="r tr" id="hero-tr-4"> </div><div class="r tr" id="hero-tr-5"><span class="c-success">●</span> <span class="b">Read</span>(src/export/csv.ts)</div><div class="r tr" id="hero-tr-6"><span class="d">  <i class="w1">⎿</i>  Read 84 lines</span></div><div class="r tr" id="hero-tr-7"> </div><div class="r tr" id="hero-tr-8"><span class="c-success">●</span> <span class="b">Update</span>(src/export/csv.ts)</div><div class="r tr" id="hero-tr-9"><span class="d">  <i class="w1">⎿</i>  Updated src/export/csv.ts with 18 additions and 9 removals</span></div><div class="r tr" id="hero-tr-10"> </div><div class="r tr" id="hero-tr-11"><span class="c-success">●</span> <span class="b">Update</span>(src/export/ExportButton.tsx)</div><div class="r tr" id="hero-tr-12"><span class="d">  <i class="w1">⎿</i>  Updated src/export/ExportButton.tsx with 4 additions</span></div><div class="r tr" id="hero-tr-13"> </div><div class="r tr" id="hero-tr-14"><span class="c-success">●</span> <span class="b">Write</span>(src/export/csv.test.ts)</div><div class="r tr" id="hero-tr-15"><span class="d">  <i class="w1">⎿</i>  Wrote 41 lines to src/export/csv.test.ts</span></div><div class="r tr" id="hero-tr-16"> </div><div class="r tr" id="hero-tr-17"><span class="c-success">●</span> <span class="b">Bash</span>(pnpm test export)</div><div class="r tr" id="hero-tr-18"><span class="d">  <i class="w1">⎿</i>  Tests  12 passed (12)</span></div><div class="r tr" id="hero-tr-19"> </div><div class="r tr" id="hero-tr-20">● Done. Exports now stream in 1,000-row chunks, so a large</div><div class="r tr" id="hero-tr-21">  report no longer stalls the tab.</div></div>
+    <div class="bottom">
+      <div class="band"><div class="band-row" id="hero-band-0"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 0   <i class="w2">🐙</i> <i class="w1">…︎</i>   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-1"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 1   <i class="w2">🐙</i> <i class="w1">…︎</i>   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-2"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 2   <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-3"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 3   <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-4"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 4   <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-5"><div class="r"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 5   <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div><div class="band-row" id="hero-band-open"><div class="r"><span class="b u"><i class="w2">🌿</i> ABC-123 <i class="w1">·︎</i>3</span>   <i class="w2">✅</i> 4/4   <i class="w2">🕘</i> 5   <i class="w2">🐙</i> 3 to review <i class="w1">·︎</i> 1 mine   <i class="w2">🎫</i> In Dev   <i class="w2">➕</i></div></div></div>
+      <div class="rule" data-layout-allow-overflow>─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+      <div class="r"><span class="d">&gt; </span><span class="i"> </span></div>
+      <div class="rule" data-layout-allow-overflow>─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</div>
+      <div class="r d">  ? for shortcuts</div>
     </div>
-    <script>
-      window.__timelines = window.__timelines || {};
-      (function () {
-        const tl = gsap.timeline({ paused: true });
+  </div>
+  <div class="sep" id="hero-sep"><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div><div class="r">│</div></div>
+  <div class="dock" id="hero-dock">
+    <div class="r">          <span class="d"><i class="w1">⇄︎</i> Bottom</span>  <i class="w1">▤︎</i> Layout  <i class="w1">⚙︎</i> Manage  <i class="w2">➕</i> Dock  <i class="w1">✕︎</i> Close</div><div class="r"> </div><div class="r"><span class="b u">View 1</span>  <span class="d"><i class="w2">➕</i> View</span></div>
+    <div class="card">
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div>
+<div class="hdr"><div class="main" id="hero-h0-open"><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">🌿</i> Branch                                       </span> <span class="d"><i class="w1">⚙︎</i></span>   <span class="d"><i class="w1">↓︎</i></span></div></div><div class="alt" id="hero-h0-closed"><div class="r"><span class="b"><i class="w1">▸︎</i> <i class="w2">🌿</i> Branch                                       </span> <span class="d"><i class="w1">⚙︎</i></span>   <span class="d"><i class="w1">↓︎</i></span></div></div></div>
+<div class="body" id="hero-b0"><div class="r"><span class="b">ABC-123/csv-export</span></div><div class="r"><span class="d"><i class="w1">↑︎</i>2 ahead of origin</span></div><div class="r"> </div><div class="r"><span class="b">1 staged <i class="w1">·︎</i> 1 modified <i class="w1">·︎</i> 1 untracked</span></div><div class="r"><span class="c-success"> </span><span class="c-error">M</span>  csv.ts<span class="d">  src/export</span></div><div class="r"><span class="c-success">M</span><span class="c-error"> </span>  ExportButton.tsx<span class="d">  src/export</span></div><div class="r"><span class="d">??  </span>csv.test.ts<span class="d">  src/export</span></div><div class="r"> </div><div class="r"><span class="d"><i class="w1">↻︎</i> Refresh</span></div></div>
+</div><div class="card">
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div>
+<div class="hdr"><div class="main" id="hero-h1-open"><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">✅</i> Checks                                       </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div><div class="alt" id="hero-h1-closed"><div class="r"><span class="b"><i class="w1">▸︎</i> <i class="w2">✅</i> Checks                                       </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div></div>
+<div class="body" id="hero-b1"><div class="r"><span class="b">Types</span>       <span class="c-success"><i class="w1">✔︎</i> passed</span><span class="d">  &lt;1s</span>                        [ Run ]</div><div class="r"><span class="b">Lint</span>        <span class="c-success"><i class="w1">✔︎</i> passed</span><span class="d">  &lt;1s</span>                        [ Run ]</div><div class="r"><span class="b">Unit tests</span>  <span class="c-success"><i class="w1">✔︎</i> passed</span><span class="d">  &lt;1s</span>                        [ Run ]</div><div class="r"><span class="b">Build</span>       <span class="c-success"><i class="w1">✔︎</i> passed</span><span class="d">  &lt;1s</span>                        [ Run ]</div><div class="r"> </div><div class="r">[ <span class="c-claude">Run all</span> ]</div></div>
+</div><div class="card">
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div>
+<div class="hdr"><div class="main off" id="hero-h2-open"><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">🕘</i> Activity                                     </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div><div class="alt on" id="hero-h2-closed"><div class="r"><span class="b"><i class="w1">▸︎</i> <i class="w2">🕘</i> Activity                                     </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div></div>
+<div class="body shut" id="hero-b2"><div class="r"><span class="b">Files edited</span><span class="b d"> <i class="w1">·︎</i> 3</span></div><div class="r">csv.test.ts<span class="d">  src/export</span>                             <span class="d">  <i class="w1">×︎</i>1</span></div><div class="r">ExportButton.tsx<span class="d">  src/export</span>                        <span class="d">  <i class="w1">×︎</i>1</span></div><div class="r">csv.ts<span class="d">  src/export</span>                                  <span class="d">  <i class="w1">×︎</i>1</span></div><div class="r"> </div><div class="r"><span class="b">Recent calls</span><span class="b d"> <i class="w1">·︎</i> 5</span></div><div class="r"><span class="c-success"><i class="w1">✓︎</i> </span><span class="b">Bash </span>  <span class="d">pnpm test export</span></div><div class="r"><span class="c-success"><i class="w1">✓︎</i> </span><span class="b">Write</span>  <span class="d">src/export/csv.test.ts</span></div><div class="r"><span class="c-success"><i class="w1">✓︎</i> </span><span class="b">Edit </span>  <span class="d">src/export/ExportButton.tsx</span></div><div class="r"><span class="c-success"><i class="w1">✓︎</i> </span><span class="b">Edit </span>  <span class="d">src/export/csv.ts</span></div><div class="r"><span class="c-success"><i class="w1">✓︎</i> </span><span class="b">Read </span>  <span class="d">src/export/csv.ts</span></div><div class="r"> </div><div class="r"><span class="d">Clear</span></div></div>
+</div><div class="card">
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div>
+<div class="hdr"><div class="main off" id="hero-h3-open"><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">🐙</i> GitGud                                       </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div><div class="alt on" id="hero-h3-closed"><div class="r"><span class="b"><i class="w1">▸︎</i> <i class="w2">🐙</i> GitGud                                       </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span> <span class="d"><i class="w1">↓︎</i></span></div></div></div>
+<div class="body shut" id="hero-b3"><div class="r"><span class="b u"><i class="w2">👀</i> To review 3</span>  <span class="d"><i class="w2">🙋</i> Mine 1</span>  <span class="d"><i class="w2">📌</i> Issues 0</span>  <span class="d"><i class="w2">🔍</i> Search</span></div><div class="r"><span class="d">Repos  </span><span class="b">acme/webapp</span>                         <span class="b u">This</span> <span class="d"><i class="w1">·︎</i></span> <span class="d">All</span> <span class="d"><i class="w2">➕</i></span></div><div class="r"> </div><div class="r"> <i class="w2">✅</i> <span class="b c-suggestion">#2086</span> ABC-131 / Date range picker               3h<span class="d"> <i class="w1">⋯︎</i></span></div><div class="r"><span class="d">    grace <i class="w1">·︎</i> <i class="w2">💬</i> 2 <i class="w1">·︎</i> <i class="w2">🎫</i> In Review</span></div><div class="r"> <i class="w2">🟡</i> <span class="b c-suggestion">#2090</span> Fix sidebar overflow on narrow scre<i class="w1">…︎</i>      3h<span class="d"> <i class="w1">⋯︎</i></span></div><div class="r"><span class="d">    linus</span></div><div class="r"> <i class="w2">✅</i> <span class="b c-suggestion">#2093</span> Bump the chart library to v5              3h<span class="d"> <i class="w1">⋯︎</i></span></div><div class="r"><span class="d">    ada</span></div><div class="r"> </div><div class="r"><span class="b"><i class="w2">🌿</i> This branch</span><span class="b d"> <i class="w1">·︎</i> ABC-123/csv-export</span></div><div class="r"><i class="w2">📝</i> PR description  <i class="w2">🧾</i> Commit summary</div><div class="r"> </div><div class="r"><span class="d"><i class="w1">↻︎</i> Refresh</span></div></div>
+</div><div class="card">
+<div class="r"><span class="d">────────────────────────────────────────────────────────</span></div>
+<div class="hdr"><div class="main off" id="hero-h4-open"><div class="r"><span class="b"><i class="w1">▾︎</i> <i class="w2">🎫</i> Jira <i class="w1">·︎</i> assigned to me                        </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span></div></div><div class="alt on" id="hero-h4-closed"><div class="r"><span class="b"><i class="w1">▸︎</i> <i class="w2">🎫</i> Jira <i class="w1">·︎</i> assigned to me                        </span> <span class="d"><i class="w1">⚙︎</i></span> <span class="d"><i class="w1">↑︎</i></span></div></div></div>
+<div class="body shut" id="hero-b4"><div class="r"><span class="d"> Board  </span><span class="b">Web Board <i class="w1">·︎</i> kanban</span></div><div class="r"> </div><div class="r"> <span class="b">TO DO</span><span class="d">  (2)</span></div><div class="r"> <i class="w1">▸︎</i> <span class="b c-suggestion">ABC-140</span>  Remember the last export format           <span class="d"> <i class="w1">⋯︎</i></span></div><div class="r"> <i class="w1">▸︎</i> <span class="b c-suggestion">ABC-137</span>  Empty state for saved views               <span class="d"> <i class="w1">⋯︎</i></span></div><div class="r"> </div><div class="r"> <span class="b">IN DEV</span><span class="d">  (1)</span></div><div class="r"> <i class="w1">▾︎</i> <span class="b c-suggestion">ABC-123</span><span class="c-warning"> <i class="w1">★︎</i></span>  Stream large CSV exports   <span class="d">  #2079 <i class="w2">✅</i> <i class="w2">👍</i> <i class="w1">⋯︎</i></span></div><div class="r"><span class="d">     Status  </span><span class="b">In Dev</span></div><div class="r"><span class="d">     PR      </span><span class="b">#2079 <i class="w2">✅</i> <i class="w2">👍</i></span></div><div class="r"> </div><div class="r"> <span class="b">IN REVIEW</span><span class="d">  (1)</span></div><div class="r"> <i class="w1">▸︎</i> <span class="b c-suggestion">ABC-131</span>  Date range picker for reports   <span class="d">  #2086 <i class="w2">✅</i> <i class="w1">⋯︎</i></span></div><div class="r"> </div><div class="r"> <span class="b">DONE</span><span class="d">  (1)  <i class="w1">▸︎</i></span></div><div class="r"> </div><div class="r"><span class="d"><i class="w1">↻︎</i> Refresh</span>  <span class="d"><i class="w1">↗︎</i> Open ABC-123</span></div></div>
+</div>
+  </div>
+</div>
+<div class="cursor" id="hero-cur"><svg viewBox="0 0 22 26" aria-hidden="true"><path d="M2 2 L2 21 L7 16.5 L10.6 24 L14 22.4 L10.5 15 L17.5 15 Z" fill="#f4f4f4" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+</div>
+</div>
+<script>
+window.__timelines = window.__timelines || {};
+(function () {
+const tl = gsap.timeline({ paused: true });
 
-        const cur = document.getElementById("hero-cur");
-        function move(x, y, at, d) {
-          tl.to(
-            cur,
-            {
-              x: x,
-              y: y,
-              duration: d === undefined ? 0.6 : d,
-              ease: "power2.inOut",
-            },
-            at,
-          );
-        }
-        function click(at) {
-          tl.to(cur, { scale: 0.8, duration: 0.08, ease: "power1.out" }, at);
-          tl.to(
-            cur,
-            { scale: 1, duration: 0.14, ease: "power1.out" },
-            at + 0.08,
-          );
-        }
-        function on(sel, at) {
-          tl.set(sel, { opacity: 1 }, at);
-        }
-        function off(sel, at) {
-          tl.set(sel, { opacity: 0 }, at);
-        }
-        function swap(from, to, at) {
-          off(from, at);
-          on(to, at);
-        }
 
-        const left = document.getElementById("hero-left");
-        const dock = document.getElementById("hero-dock");
-        const sep = document.getElementById("hero-sep");
-        const WIDE = 1238.4,
-          NARROW = 691.2;
-        const bodies = [180, 120, 260, 280, 340];
-        // Every first state is in the CSS: the dock closed, the transcript and the band empty.
-        gsap.set(cur, { x: 520, y: 420 });
+const cur = document.getElementById('hero-cur');
+function move(x, y, at, d) { tl.to(cur, { x: x, y: y, duration: d === undefined ? 0.6 : d, ease: 'power2.inOut' }, at); }
+function click(at) { tl.to(cur, { scale: 0.8, duration: 0.08, ease: 'power1.out' }, at); tl.to(cur, { scale: 1, duration: 0.14, ease: 'power1.out' }, at + 0.08); }
+function on(sel, at) { tl.set(sel, { opacity: 1 }, at); }
+function off(sel, at) { tl.set(sel, { opacity: 0 }, at); }
+function swap(from, to, at) { off(from, at); on(to, at); }
 
-        // Claude works; each tool call it makes counts on the band.
-        const reveal = [
-          [0, 0.2],
-          [2, 0.7],
-          [3, 0.7],
-          [5, 1.2],
-          [6, 1.2],
-          [8, 1.8],
-          [9, 1.8],
-          [11, 2.4],
-          [12, 2.4],
-          [14, 3],
-          [15, 3],
-          [17, 3.6],
-          [18, 3.6],
-          [20, 4.3],
-          [21, 4.3],
-        ];
-        for (const [i, t] of reveal)
-          tl.to(
-            "#hero-tr-" + i,
-            { opacity: 1, duration: 0.25, ease: "power1.out" },
-            t,
-          );
-        const steps = [0.4, 1.2, 1.8, 2.4, 3, 3.6];
-        on("#hero-band-0", steps[0]);
-        for (let i = 1; i < steps.length; i += 1)
-          swap("#hero-band-" + (i - 1), "#hero-band-" + i, steps[i]);
+const left = document.getElementById('hero-left');
+const dock = document.getElementById('hero-dock');
+const sep = document.getElementById('hero-sep');
+const WIDE = 1238.4, NARROW = 691.2;
+const bodies = [180,120,260,280,340];
+// Every first state is in the CSS: the dock closed, the transcript and the band empty.
+gsap.set(cur, { x: 520, y: 420 });
 
-        // A click on the 🌿 tab opens the dock; the tab of the panel in view is drawn bold and underlined.
-        tl.to(cur, { opacity: 1, duration: 0.3 }, 4.8);
-        move(581, 650, 4.9, 0.7);
-        click(5.7);
-        tl.to(left, { width: NARROW, duration: 0.5, ease: "power3.out" }, 5.85);
-        tl.fromTo(
-          dock,
-          { opacity: 0, x: 120 },
-          { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" },
-          5.85,
-        );
-        tl.to(sep, { opacity: 1, duration: 0.3 }, 5.95);
-        swap("#hero-band-5", "#hero-band-open", 6.35);
+// Claude works; each tool call it makes counts on the band.
+const reveal = [[0,0.2],[2,0.7],[3,0.7],[5,1.2],[6,1.2],[8,1.8],[9,1.8],[11,2.4],[12,2.4],[14,3],[15,3],[17,3.6],[18,3.6],[20,4.3],[21,4.3]];
+for (const [i, t] of reveal) tl.to('#hero-tr-' + i, { opacity: 1, duration: 0.25, ease: 'power1.out' }, t);
+const steps = [0.4,1.2,1.8,2.4,3,3.6];
+on('#hero-band-0', steps[0]);
+for (let i = 1; i < steps.length; i += 1) swap('#hero-band-' + (i - 1), '#hero-band-' + i, steps[i]);
 
-        // Sections close and open from their headers.
-        function toggle(n, open, t) {
-          click(t);
-          tl.to(
-            "#hero-b" + n,
-            {
-              height: open ? bodies[n] : 0,
-              duration: 0.35,
-              ease: "power2.inOut",
-            },
-            t + 0.1,
-          );
-          tl.set("#hero-h" + n + "-closed", { opacity: open ? 0 : 1 }, t + 0.1);
-          tl.set("#hero-h" + n + "-open", { opacity: open ? 1 : 0 }, t + 0.1);
-        }
-        move(734, 350, 7.0, 0.7);
-        toggle(1, false, 7.8);
-        move(734, 430, 8.6, 0.6);
-        toggle(3, true, 9.3);
-        move(734, 130, 10.5, 0.7);
-        toggle(0, false, 11.3);
+// A click on the 🌿 tab opens the dock; the tab of the panel in view is drawn bold and underlined.
+tl.to(cur, { opacity: 1, duration: 0.3 }, 4.8);
+move(581, 650, 4.9, 0.7);
+click(5.7);
+tl.to(left, { width: NARROW, duration: 0.5, ease: 'power3.out' }, 5.85);
+tl.fromTo(dock, { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.5, ease: 'power3.out' }, 5.85);
+tl.to(sep, { opacity: 1, duration: 0.3 }, 5.95);
+swap('#hero-band-5', '#hero-band-open', 6.35);
 
-        // ✕ Close puts the dock away; the band keeps its tabs.
-        move(1205, 50, 12.3, 0.8);
-        click(13.2);
-        tl.to(
-          dock,
-          { opacity: 0, x: 120, duration: 0.4, ease: "power2.in" },
-          13.35,
-        );
-        tl.to(sep, { opacity: 0, duration: 0.2 }, 13.35);
-        tl.to(
-          left,
-          { width: WIDE, duration: 0.45, ease: "power3.inOut" },
-          13.35,
-        );
-        swap("#hero-band-open", "#hero-band-5", 13.4);
-        tl.to(cur, { opacity: 0, duration: 0.3 }, 14.2);
+// Sections close and open from their headers.
+function toggle(n, open, t) {
+  click(t);
+  tl.to('#hero-b' + n, { height: open ? bodies[n] : 0, duration: 0.35, ease: 'power2.inOut' }, t + 0.1);
+  tl.set('#hero-h' + n + '-closed', { opacity: open ? 0 : 1 }, t + 0.1);
+  tl.set('#hero-h' + n + '-open', { opacity: open ? 1 : 0 }, t + 0.1);
+}
+move(734, 350, 7.0, 0.7);
+toggle(1, false, 7.8);
+move(734, 430, 8.6, 0.6);
+toggle(3, true, 9.3);
+move(734, 130, 10.5, 0.7);
+toggle(0, false, 11.3);
 
-        // Fade the session out so the loop starts clean.
-        tl.to(".tr", { opacity: 0, duration: 0.5 }, 15.3);
-        tl.to("#hero-band-5", { opacity: 0, duration: 0.5 }, 15.3);
+// ✕ Close puts the dock away; the band keeps its tabs.
+move(1205, 50, 12.3, 0.8);
+click(13.2);
+tl.to(dock, { opacity: 0, x: 120, duration: 0.4, ease: 'power2.in' }, 13.35);
+tl.to(sep, { opacity: 0, duration: 0.2 }, 13.35);
+tl.to(left, { width: WIDE, duration: 0.45, ease: 'power3.inOut' }, 13.35);
+swap('#hero-band-open', '#hero-band-5', 13.4);
+tl.to(cur, { opacity: 0, duration: 0.3 }, 14.2);
 
-        window.__timelines["hero"] = tl;
-      })();
-    </script>
-  </body>
+// Fade the session out so the loop starts clean.
+tl.to('.tr', { opacity: 0, duration: 0.5 }, 15.3);
+tl.to('#hero-band-5', { opacity: 0, duration: 0.5 }, 15.3);
+
+window.__timelines["hero"] = tl;
+})();
+</script>
+</body>
 </html>
