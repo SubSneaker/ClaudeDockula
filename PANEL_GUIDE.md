@@ -57,7 +57,7 @@ answer (a timer, a fetch that finished, a reload), so the dock redraws. Inside a
 needed (`handled: true` redraws) and does not run: no hook runs under its own call.
 
 A panel's entry in `PANELS` is `{ id, title, icon, description }`: `id` lowercase letters, digits and
-`-` (not `add` or `layout`, and no built-in's: `branch`, `checks`, `activity`, `jira`, `slacker`); `icon` one emoji.
+`-` (not `add` or `layout`, and no built-in's: `branch`, `checks`, `activity`, `jira`, `gitgud`, `slacker`); `icon` one emoji.
 
 ### Drawing: rows of spans
 

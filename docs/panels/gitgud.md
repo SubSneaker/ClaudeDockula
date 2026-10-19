@@ -10,7 +10,7 @@ GitLab and Bitbucket support was built from their documentation and has not been
 
 ## Turning it on
 
-The panel is off until you add it. Open ⚙ Manage on a dock (or run `/dock manage`) and tick `🐙 GitGud`. Nothing runs until it is in a dock view. If you had the GitHub panel on, it stays where it was under its new name, and the band shows `Updated: 🐙 GitGud` once.
+The panel is off until you add it. Open ⚙ Manage on a dock (or run `/dock manage`; see [Show or hide panels](../usage.md#show-or-hide-panels)) and tick `🐙 GitGud`. Nothing runs until it is in a dock view. If you had the GitHub panel on, it stays where it was under its new name, and the band shows `Updated: 🐙 GitGud` once.
 
 ## What it needs
 

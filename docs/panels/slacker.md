@@ -4,7 +4,7 @@ Slacker shows what needs you in Slack: messages that @mention you, direct messag
 
 ## Turning it on
 
-Slacker is off until you add it. Open ⚙ Manage on a dock (or run `/dock manage`) and tick `💬 Slacker`. Until it is in a dock view it reads nothing. When ClaudeDockula first offers it, the band shows the notice `New panel: 💬 Slacker`.
+Slacker is off until you add it. Open ⚙ Manage on a dock (or run `/dock manage`; see [Show or hide panels](../usage.md#show-or-hide-panels)) and tick `💬 Slacker`. Until it is in a dock view it reads nothing. When ClaudeDockula first offers it, the band shows the notice `New panel: 💬 Slacker`.
 
 ## What it needs
 
