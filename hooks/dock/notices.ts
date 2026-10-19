@@ -1,7 +1,7 @@
 import type { ThemeKey } from 'claude-code'
 
 import type { DockNotice, DockNoticeAction, NoticeTone } from '../../types'
-import { drawable } from '../panels/github/parse'
+import { drawable } from '../panels/gitgud/parse'
 import { cellWidth, fitEnd, padCells, TONE } from './ui'
 
 // Notices replace toasts: each file that tells the person something writes the literal ref

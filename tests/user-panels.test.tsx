@@ -180,13 +180,13 @@ test('a pack panel missing at session start keeps its place, comes back to it, a
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: 'fatal', isStdoutTruncated: false, isStderrTruncated: false } }))
   const start = { cwd: '/repo', surface: 'terminal', isInteractive: true } as const
-  // The main dock's cards in order, each with its minimize toggle: `▸` while minimized.
+  // The main dock's cards in order, each with its header toggle: `▸` while minimized.
   const placement = async () => {
     const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
     const toggles = (await pane.findAll({ type: 'Button' })).filter(found => found.key?.startsWith('dock-main-toggle-'))
     await pane.unmount()
 
-    return toggles.map(found => `${found.key ?? ''} ${found.text}`)
+    return toggles.map(found => `${found.key ?? ''} ${found.text?.trimEnd()}`)
   }
 
   await $.session.start(start)
@@ -195,7 +195,7 @@ test('a pack panel missing at session start keeps its place, comes back to it, a
   await pane.press({ key: 'dock-main-toggle-demo' })
   await pane.unmount()
   const placed = await placement()
-  expect(placed.slice(-2)).toEqual(['dock-main-toggle-demo ▸', 'dock-main-toggle-jira ▾'])
+  expect(placed.slice(-2)).toEqual(['dock-main-toggle-demo ▸ 🧪 Demo', 'dock-main-toggle-jira ▾ 🎫 Jira · assigned to me'])
 
   // The pack does not list it: no card, no tab, a dim row in Manage.
   demo = 'off'
@@ -226,7 +226,7 @@ test('a pack panel missing at session start keeps its place, comes back to it, a
   await manage.unmount()
   demo = 'on'
   await $.session.start(start)
-  expect((await placement()).at(-1)).toBe('dock-main-toggle-demo ▾')
+  expect((await placement()).at(-1)).toBe('dock-main-toggle-demo ▾ 🧪 Demo')
 })
 
 describe('what packs answer is read as untrusted data', () => {

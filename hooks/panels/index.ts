@@ -4,14 +4,14 @@ import { activityPanel, registerActivityHooks } from './activity'
 import { branchPanel, registerBranchHooks } from './branch'
 import { checksPanel, registerChecksHooks } from './checks'
 import { type DockPanel } from './contract'
-import { githubPanel, registerGithubHooks } from './github'
-import { registerGithubOverlapHooks } from './githubOverlap'
-import { registerGithubWorkHooks } from './githubWork'
+import { gitgudPanel, registerGitgudHooks } from './gitgud'
+import { registerGitgudOverlapHooks } from './gitgudOverlap'
+import { registerGitgudWorkHooks } from './gitgudWork'
 import { jiraPanel, registerJiraHooks } from './jira'
 import { registerSlackerHooks, slackerPanel } from './slacker'
 
 /** The built-in panels; the person's own come from their panels plugin through `$.dockula.panels`. */
-export const PANELS: DockPanel[] = [branchPanel, checksPanel, activityPanel, jiraPanel, slackerPanel, githubPanel]
+export const PANELS: DockPanel[] = [branchPanel, checksPanel, activityPanel, jiraPanel, slackerPanel, gitgudPanel]
 
 /**
  * Each panel's own hooks, called by name: the engine only accepts `on` handed to a named
@@ -23,7 +23,7 @@ export function registerPanelHooks(on: On): void {
   registerActivityHooks(on)
   registerJiraHooks(on)
   registerSlackerHooks(on)
-  registerGithubHooks(on)
-  registerGithubWorkHooks(on)
-  registerGithubOverlapHooks(on)
+  registerGitgudHooks(on)
+  registerGitgudWorkHooks(on)
+  registerGitgudOverlapHooks(on)
 }

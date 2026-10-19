@@ -100,16 +100,30 @@ function cardWidthsOf(tree: unknown, dockId: string): Array<Array<[string, numbe
   }
 
   return nodesOf(tree).flatMap(node => {
-    const slots = childrenOf(node).map(slotOf)
+    const slots = childrenOf(node).filter(child => propOf(child, 'position') !== 'absolute').map(slotOf)
     const line = slots.filter((slot): slot is [string, number] => slot !== undefined)
 
     return propOf(node, 'flexDirection') === 'row' && line.length > 0 && line.length === slots.length ? [line] : []
   })
 }
 
+/** The `left` of every divider drawn between side by side sections. */
+function dividerLefts(tree: unknown): unknown[] {
+  return nodesOf(tree)
+    .filter(node => propOf(node, 'position') === 'absolute')
+    .map(node => propOf(node, 'left'))
+}
+
+/** The length of every `─` rule drawn, in drawing order. */
+async function ruleWidths(ui: { findAll(query: { type: 'Text' }): Promise<Array<{ text?: string }>> }): Promise<number[]> {
+  const rules = (await ui.findAll({ type: 'Text' })).filter(found => /^─+$/.test(found.text ?? ''))
+
+  return rules.map(rule => rule.text?.length ?? 0)
+}
+
 /** The clipped box of the bottom dock's cards: its height and how far its cards are scrolled. */
 function clipOf(tree: unknown): { height: unknown; scroll: unknown } | undefined {
-  const box = nodesOf(tree).find(node => propOf(node, 'overflow') === 'hidden')
+  const box = nodesOf(tree).find(node => propOf(node, 'overflow') === 'hidden' && propOf(node, 'width') === undefined && propOf(childrenOf(node)[0], 'marginTop') !== undefined)
 
   return box === undefined ? undefined : { height: propOf(box, 'height'), scroll: propOf(childrenOf(box)[0], 'marginTop') }
 }
@@ -357,6 +371,29 @@ test('the view tabs: ➕ View opens an empty view in Manage, a tab switches view
   }
 })
 
+test("a section's rule is exactly as wide as the section, at each dock width", async ($, on) => {
+  mock.store(on)
+  mockPanes(on)
+  for (const columns of [56, 40]) {
+    const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(columns) })
+    const rules = (await pane.findAll({ type: 'Text' })).filter(found => /^─+$/.test(found.text ?? ''))
+    expect(rules.length).toBeGreaterThan(0)
+    expect(rules.map(rule => rule.text?.length)).toEqual(rules.map(() => columns))
+    await pane.unmount()
+  }
+})
+
+test('a long panel title is cut to its section, leaving the controls', async ($, on) => {
+  mock.store(on)
+  mockPanes(on)
+  const pane = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(24) })
+  const toggle = await pane.find({ key: 'dock-main-toggle-jira' })
+  expect(toggle?.props.label).toBe('▾ 🎫 Jira · assigne…')
+  expect(cellWidth(String(toggle?.props.label))).toBe(24 - 3 - 1)
+  expect(await pane.find({ key: 'dock-main-up-1-jira' })).toBeDefined()
+  await pane.unmount()
+})
+
 test('view-scoped presses name their view: Remove view takes the view in its key; a view that is gone changes nothing', async ($, on) => {
   mock.store(on)
   mockPanes(on)
@@ -441,7 +478,8 @@ test('Row (wraps) in the bottom dock: cards side by side, a width sends one to i
 
   // The cards share the band less the probe's blank column and the scrollbar's.
   expect(cardWidthsOf(await band.drawn(), '2')).toEqual([[['branch', 49], ['checks', 48]], [['activity', 98]]])
-  // Taller, the dock keeps rows for its cards under the Layout card's nine.
+  expect(await ruleWidths(band)).toEqual([49, 48, 98])
+  // Taller, the dock keeps rows for its cards under the Layout section's seven (4 and the 3 width rows).
   await band.pointer({ in: 'dock-2-grip', type: 'down', x: 40, y: 0, button: 'left' })
   await band.pointer({ in: 'dock-2-grip', type: 'up', x: 40, y: -7, button: 'left' })
   await band.press({ key: 'dock-2-layout' })
@@ -450,9 +488,14 @@ test('Row (wraps) in the bottom dock: cards side by side, a width sends one to i
   await band.press({ key: 'dock-2-width-third-1-branch' })
   await band.press({ key: 'dock-2-width-auto-1-checks' })
   expect(cardWidthsOf(await band.drawn(), '2')).toEqual([[['branch', 32], ['checks', 65]], [['activity', 98]]])
+  // The Layout rule is as wide as the cards, not the band.
+  expect(await ruleWidths(band)).toEqual([98, 32, 65, 98])
+  // One divider in the gap of the two-slot line, at the first card's width; none under a one-slot line.
+  expect(dividerLefts(await band.drawn())).toEqual([32])
   await band.press({ key: 'dock-2-dir-column-1' })
   expect(await band.find({ key: 'dock-2-width-full-1-checks' })).toBeUndefined()
   expect(cardWidthsOf(await band.drawn(), '2')).toEqual([[['branch', 98]], [['checks', 98]], [['activity', 98]]])
+  expect(dividerLefts(await band.drawn())).toEqual([])
   await band.unmount()
 })
 
@@ -493,12 +536,12 @@ test('the grip: a bottom dock always has a height, a drag is exact from it, the 
   await band.pointer({ ...grip, type: 'up', x: 3, y: 0, button: 'left' })
   expect(clipOf(await band.drawn())).toEqual({ height: 16, scroll: 0 })
 
-  // The ➕ menu (3 rows) and the Layout card (6 rows and one for its note) come out of the cards' rows.
+  // The ➕ menu (3 rows) and the Layout section (4 rows and one for its note) come out of the cards' rows.
   await band.press({ key: 'dock-2-menu' })
   expect(clipOf(await band.drawn())?.height).toBe(13)
   await band.press({ key: 'dock-2-menu' })
   await band.press({ key: 'dock-2-layout' })
-  expect(clipOf(await band.drawn())?.height).toBe(9)
+  expect(clipOf(await band.drawn())?.height).toBe(11)
   await band.press({ key: 'dock-2-layout' })
 
   // A smaller band holds the dock to what it leaves, however tall it was stored.

@@ -43,9 +43,9 @@ Notes the card may show meanwhile: `Reading settings…`, `Looking for an Atlass
 `▸ ABC-101 ★  Add export button  #2086 ✅ 👍 ⋯`
 
 - `▸` when closed, `▾` when open. Then the key, `★` for the branch's ticket, and the summary.
-- A pull request badge, when the [GitHub panel](github.md) is on and one of your open pull requests or review requests has the key in its title or branch:
+- A pull request badge, when the [GitGud panel](gitgud.md) is on and one of your open pull requests or review requests has the key in its title or branch:
   - `#2086`, the pull request's number.
-  - CI (the checks GitHub runs): `✅` passed, `❌` failed, `🟡` running, `⚪` none.
+  - CI (the checks the service runs): `✅` passed, `❌` failed, `🟡` running, `⚪` none.
   - Review: `👍` approved, `✋` changes requested, `👀` review required.
   - `📝` for a draft, and `+1` when more pull requests carry the key. Your own pull request is shown before a review request.
 - `⋯` opens the ticket's menu.
@@ -149,7 +149,7 @@ It writes one thing: moving a ticket (`transitionJiraIssue`). It does this only 
 - `Ticket pattern in a branch name`: a regular expression that finds a ticket key. The default is `[A-Z][A-Z0-9]+-\d+`. A pattern that does not work is not saved, and the form says `That ticket pattern is not valid: the default is used.`
 - **Save** and **Cancel**.
 
-These settings apply to every repo and session. The [Branch](branch.md) and [GitHub](github.md) panels use the same ticket pattern. The board you pick is kept per project. All of it is in ClaudeDockula's store, under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`).
+These settings apply to every repo and session. The [Branch](branch.md) and [GitGud](gitgud.md) panels use the same ticket pattern. The board you pick is kept per project. All of it is in ClaudeDockula's store, under `plugins/store/` in your Claude folder (`$CLAUDE_CONFIG_DIR`, else `~/.claude`).
 
 ## Permissions
 

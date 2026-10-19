@@ -29,7 +29,7 @@ import {
   parseSettings
 } from '../settings'
 import type { DockPanel } from './contract'
-import { prBadgesByKey, type PrBadge } from './github/jiraLink'
+import { prBadgesByKey, type PrBadge } from './gitgud/jiraLink'
 import {
   boardOptions,
   boardProjectFor,
@@ -129,7 +129,7 @@ const BOARD_STORE_KEY = 'jiraBoardChoices'
 const GIT_BRANCH = ['git', '--no-optional-locks', 'rev-parse', '--abbrev-ref', 'HEAD']
 
 const jiraState = atom({ plugin: 'claudedockula', key: 'jira' } as const, {})
-const githubState = atom({ plugin: 'claudedockula', key: 'github' } as const, {})
+const gitgudState = atom({ plugin: 'claudedockula', key: 'gitgud' } as const, {})
 const layoutAtom = atom({ plugin: 'claudedockula', key: 'layout' } as const, DEFAULT_LAYOUT)
 const noticesAtom = atom({ plugin: 'claudedockula', key: 'notices' } as const, NO_NOTICES)
 
@@ -670,7 +670,7 @@ async function runTicketAction($: EngineInterface, action: TicketAction, key: st
   if (action === 'open') {
     await openUrl($, ticket.url)
   } else if (action === 'pr') {
-    const badge = prBadgesByKey(await read($, githubState))[key]
+    const badge = prBadgesByKey(await read($, gitgudState))[key]
     if (badge) await openUrl($, badge.url)
     else await notify($, 'info', `No open pull request carries ${key}`)
   } else if (action === 'branch') {

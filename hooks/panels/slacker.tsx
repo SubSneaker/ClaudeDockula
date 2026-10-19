@@ -573,7 +573,7 @@ export function registerSlackerHooks(on: On): void {
     return started
   })
 
-  // Opening the panel (its band tab, or its card's minimize toggle in any dock) marks it seen and reads Slack again.
+  // Opening the panel (its band tab, or its card's header toggle in any dock) marks it seen and reads Slack again.
   on('ui.press', { plugin: 'claudedockula', element: /^dock-(tab|main-toggle|\d+-toggle)-slacker$/ }, async ($, e, next) => {
     const pressed = await next(e)
     await markOpened($)

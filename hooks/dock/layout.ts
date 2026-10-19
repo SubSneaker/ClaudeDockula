@@ -309,6 +309,34 @@ export function forgetPanel(layout: DockLayout, panelId: string): DockLayout {
   }
 }
 
+/** Panels whose id changed: `[from, to]`, applied to every layout read so the person's placement carries over. */
+export const PANEL_RENAMES: readonly (readonly [string, string])[] = [['github', 'gitgud']]
+
+/** The layout with one panel's id changed everywhere it is recorded; where both ids are already there, the old one is dropped. */
+export function renamePanelId(layout: DockLayout, from: string, to: string): DockLayout {
+  const swap = (ids: string[]) => [...new Set(ids.map(id => (id === from ? to : id)))]
+  const swapWidths = (widths: DockViewTab['widths']): DockViewTab['widths'] => {
+    const { [from]: moved, ...rest } = widths
+
+    return moved === undefined ? widths : { [to]: moved, ...rest }
+  }
+
+  return {
+    ...layout,
+    docks: layout.docks.map(dock => ({
+      ...dock,
+      ...(dock.focused === from ? { focused: to } : {}),
+      views: dock.views.map(view => ({ ...view, panels: swap(view.panels), minimized: swap(view.minimized), widths: swapWidths(view.widths) })),
+    })),
+    known: swap(layout.known),
+  }
+}
+
+/** `layout` with every rename in `renames` applied. */
+export function renamePanelIds(layout: DockLayout, renames: readonly (readonly [string, string])[] = PANEL_RENAMES): DockLayout {
+  return renames.reduce((current, [from, to]) => renamePanelId(current, from, to), layout)
+}
+
 /** A dock as a new session finds it: its panel cards in view from the top, nothing focused, no menu open. */
 function freshView(dock: DockView): DockView {
   const { focused: _focused, isMenuOpen: _isMenuOpen, isLayoutOpen: _isLayoutOpen, ...rest } = dock
@@ -671,7 +699,7 @@ export function setCardWidth(dock: DockView, viewId: string, panelId: string, wi
   })
 }
 
-/** One card's place in a line of the dock: its panel and its width in columns, its frame included. */
+/** One card's place in a line of the dock: its panel and its width in columns. */
 export interface CardSlot {
   id: string
   width: number

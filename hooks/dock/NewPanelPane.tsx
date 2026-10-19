@@ -208,6 +208,7 @@ async function renderNewPanel($: EngineInterface, e: RenderInput<'Pane'>): Promi
     <Box flexDirection="column" width={Math.max(1, e.props.bodyColumns)} rowGap={1}>
       {drawCard(ui, {
         key: formKey('intro'),
+        cells: Math.max(1, e.props.bodyColumns),
         title: '✨ New panel',
         body: (
           <Box flexDirection="column">

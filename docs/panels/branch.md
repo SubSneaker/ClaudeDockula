@@ -43,7 +43,7 @@ The band is the row of tabs above the prompt. This panel's tab reads like `🌿 
 
 ## Settings
 
-The panel has no settings of its own. The ticket pattern for the band is shared with the Jira and GitHub panels and is set in the Jira panel's ⚙ (which needs an Atlassian MCP server, see [Jira](jira.md)).
+The panel has no settings of its own. The ticket pattern for the band is shared with the [Jira](jira.md) and [GitGud](gitgud.md) panels and is set in the Jira panel's ⚙ (which needs an Atlassian MCP server, see [Jira](jira.md)).
 
 ## Messages on the card
 

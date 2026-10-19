@@ -10,9 +10,9 @@ import type {
   JiraState,
   JiraTicket
 } from '../../../types'
-import type { PrBadge } from '../github/jiraLink'
-import { prBadgeLabel } from '../github/jiraLink'
-import { drawable } from '../github/parse'
+import type { PrBadge } from '../gitgud/jiraLink'
+import { prBadgeLabel } from '../gitgud/jiraLink'
+import { drawable } from '../gitgud/parse'
 import { isRecord, mcpErrorText, readMcpJson, textAt, valueAt } from './parse'
 import { ticketFromIssue } from './ticket'
 

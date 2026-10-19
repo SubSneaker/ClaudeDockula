@@ -168,41 +168,46 @@ export function splitPath(path: string): PathParts {
   return cut < 0 ? { name: trimmed, dir: '' } : { name: trimmed.slice(cut + 1), dir: trimmed.slice(0, cut) }
 }
 
-/** Cells a card's frame takes across: its border and one column of padding on each side. */
-export const CARD_FRAME_CELLS = 4
-
 export interface CardParts {
   /** The card's address, which `$.ui.scroll` brings into view. */
   key: string
-  title: string
-  /** Header controls drawn at the right end: minimize, reorder. */
+  /** Cells the section is drawn across, so its rule is exactly as wide and never wraps. */
+  cells: number
+  /** Bold text for a plain title, or the header element (a toggle) drawn in its place. */
+  title: string | JSX.Element
+  /** Header controls drawn at the right end: settings, reorder. */
   controls?: JSX.Element[]
   body?: JSX.Element | null
 }
 
-/** A rounded card: bold title and controls on one row, then the body under a blank row. */
+/** An accordion section: a dim rule as wide as the section, the header row, then the body directly under it. */
 export function drawCard(ui: DockElements, card: CardParts): JSX.Element {
   const { Box, Text } = ui
+  const title =
+    typeof card.title === 'string' ? (
+      <Text bold wrap="truncate-end">
+        {card.title}
+      </Text>
+    ) : (
+      card.title
+    )
 
   return (
-    <Box key={card.key} flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+    <Box key={card.key} flexDirection="column">
+      <Box height={1} overflow="hidden">
+        <Text dimColor mono wrap="wrap">
+          {'─'.repeat(Math.max(1, card.cells))}
+        </Text>
+      </Box>
       <Box flexDirection="row" justifyContent="space-between" columnGap={1}>
-        <Box flexShrink={1}>
-          <Text bold wrap="truncate-end">
-            {card.title}
-          </Text>
-        </Box>
+        <Box flexShrink={1}>{title}</Box>
         {card.controls !== undefined && (
           <Box flexDirection="row" columnGap={1} flexShrink={0}>
             {card.controls}
           </Box>
         )}
       </Box>
-      {card.body && (
-        <Box flexDirection="column" marginTop={1}>
-          {card.body}
-        </Box>
-      )}
+      {card.body && <Box flexDirection="column">{card.body}</Box>}
     </Box>
   )
 }

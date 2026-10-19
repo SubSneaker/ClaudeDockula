@@ -92,7 +92,7 @@ export function joinServerErrors(errors: readonly string[]): string {
   return errors.length > 0 ? [...new Set(errors)].join(' · ') : NO_SERVER_ANSWERED
 }
 
-/** Whether the session's permissions refused the call, as opposed to the service answering with an error. Shared by the Slack, Jira and GitHub panels. */
+/** Whether the session's permissions refused the call, as opposed to the service answering with an error. Shared by the Slack, Jira and GitGud panels. */
 export function isPermissionDenial(text: string): boolean {
   return PERMISSION_DENIAL.test(text)
 }

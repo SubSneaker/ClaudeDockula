@@ -357,7 +357,7 @@ test('a refused read: the server says why, with the hint; the error notice opens
   const jira = mockJira(on)
   on('session.start', () => ({ cwd: '/repo' }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
-  // The GitHub panel's session setup reads the environment; unanswered it posts its own error notice first.
+  // The GitGud panel's session setup reads the environment; unanswered it posts its own error notice first.
   on('env.get', () => ({ value: undefined }))
   on('ui.panes', () => ({ value: [] }))
 

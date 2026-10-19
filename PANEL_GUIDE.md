@@ -6,7 +6,7 @@ Instructions for Claude. There are two kinds of panel:
   the person's own panels plugin, never in ClaudeDockula, so an update of ClaudeDockula (which replaces
   its whole folder) never touches them.
 - **Built-in panels** ("Built-in panels (ClaudeDockula's own code only)", further down): branch, checks,
-  activity, Jira, Slacker and GitHub (the last two opt-in), part of ClaudeDockula itself. Only someone working on ClaudeDockula
+  activity, Jira, Slacker and GitGud (the last two opt-in), part of ClaudeDockula itself. Only someone working on ClaudeDockula
   changes those.
 
 The engine's API is `.claude-plugin/types/claude-code/index.d.ts` in the plugin you are working in: grep
@@ -237,7 +237,7 @@ Every control of one view carries its view id, so a press that arrives after the
 on the view it was drawn for, and one for a view that is gone does nothing (a new view never takes a removed
 one's id: the dock's `nextViewId` only grows): `dock-<dockId>-remove-view-<v>`,
 `dir-column-<v>`, `dir-row-<v>`, the view's rename field `dock-<dockId>-view-name-<v>`, and a card's
-`up`, `down`, `enable` and `width-*` as `dock-<dockId>-<action>-<v>-<panelId>`. The minimize toggle
+`up`, `down`, `enable` and `width-*` as `dock-<dockId>-<action>-<v>-<panelId>`. The header toggle
 (`dock-<dockId>-toggle-<panelId>`) and Remove panel (`drop`) name no view. When the tabs do not fit the row,
 the dock shows as many as fit, the active one always, and a `…+n` button that switches to the next hidden
 view; in a narrow pane the Layout card uses compact labels.
@@ -246,10 +246,10 @@ The band above the prompt is always there: the bottom dock while it is open, the
 "Telling the person something"), then one row of tabs, one per panel some dock shows (its emoji and a
 short live summary, `🎫 In Review`), then ➕. Pressing a tab shows that panel in the most recently used
 open dock with a view holding it, switched to that view, else in the last used dock, whose active view
-takes it in; pressing it again closes that dock. Each dock draws one rounded card per panel of its
-active view, stacked or side by side: the dock draws the frame and the header (emoji, bold title, `⚙` for a panel with settings, `▾`
-`↑` `↓`) and calls the panel's pure draw function for the body at the card's inner width, which
-differs from card to card in a row view. A panel never needs to know which dock or view it is in,
+takes it in; pressing it again closes that dock. Each dock draws one section per panel of its
+active view, stacked or side by side: a dim rule across the section's width, the header (`▾` or `▸`, emoji and bold title
+as one toggle, then `⚙` for a panel with settings and `↑` `↓`) and the body right under it. The dock calls the panel's
+pure draw function for the body at the section's width, which differs from section to section in a row view. A panel never needs to know which dock or view it is in,
 except a panel that draws a `Client` (see "Interactive panels"). A panel is four exports from one file:
 
 1. `<camel>Panel: DockPanel`: metadata only: `{ id, title, icon, description, isBuiltIn: true }`
@@ -258,7 +258,7 @@ except a panel that draws a `Client` (see "Interactive panels"). A panel is four
 2. `register<Pascal>Hooks(on: On): void`: everything that fetches, refreshes and answers buttons.
    It writes the panel's state with `update($, atom, fn)`.
 3. `draw<Pascal>(ui, state, columns): JSX.Element`: pure. It takes the resolved element table, the
-   panel's state and the card's inner width. It takes no `$` and never writes anything.
+   panel's state and the section's width. It takes no `$` and never writes anything.
 4. `summarize<Pascal>(state): string`: pure. The band text after the emoji, a few cells at most:
    a count (`12`), a status (`In Review`), `…` while loading, `–` when there is nothing to say. The band
    drops every summary and shows the emoji alone when they do not fit, so the summary is a glance,
@@ -270,10 +270,10 @@ in `PANELS`.
 
 ### Settings in the card's header
 
-`hasSettings: true` on the panel (`hooks/panels/contract.ts`) draws `⚙` in its card's header, before `▾`, keyed
-`dock-<dockId>-settings-<id>`. The dock expands a minimized card; the panel hooks that press as it hooks its minimize
+`hasSettings: true` on the panel (`hooks/panels/contract.ts`) draws `⚙` in its card's header, before `↑` `↓`, keyed
+`dock-<dockId>-settings-<id>`. The dock expands a minimized card; the panel hooks that press as it hooks its header
 toggle (`ui.press { plugin: 'claudedockula', element: /^dock-(main|\d+)-settings-<id>$/ }`, `next(e)` first) and opens
-or closes its settings in its own body, with a Done Button there. The GitHub panel is the example.
+or closes its settings in its own body, with a Done Button there. The GitGud panel is the example.
 
 ### Opt-in panels and telling people about changes
 
@@ -306,13 +306,18 @@ or closes its settings in its own body, with a Done Button there. The GitHub pan
   `{ plugin: 'claudedockula', element: '<id>-refresh' }`.
 - A matcher is read as written: a literal string or regex, or a same-file `const X = '…'` string. An imported
   constant (`KEY.refresh`) or an object property validates but shows as `element=?`, so validate cannot
-  check it. Write `element: 'github-refresh'` in the hook; use shared key constants only to build and
+  check it. Write `element: 'gitgud-refresh'` in the hook; use shared key constants only to build and
   parse Button keys.
 - Hooks in different files of this mod may match the same `ui.message` or `ui.press`. Each answers the
-  messages it owns and returns `next(e)` for the rest, so the other file's hook still runs (the GitHub
-  list and its background reviews share `element: /^github-list-/` this way).
+  messages it owns and returns `next(e)` for the rest, so the other file's hook still runs (the GitGud
+  list and its background reviews share `element: /^gitgud-list-/` this way).
 - A hook returns `next(e)` (or its awaited result) unless it answers for itself. A `tool.call` hook
   gets `.catch(($, e, next) => next(e))` so a failure never blocks the tool.
+- `$.env.get` and `$.env.set` take the variable's name as a string literal: `claude plugin validate` lists the
+  names a module reads and writes, and refuses a name the module does not spell. A name built at run time, or
+  one the person types, cannot be read. To offer a choice, spell out each allowed name in its own call
+  (`if (name === 'BITBUCKET_TOKEN') return $.env.get('BITBUCKET_TOKEN')`, as GitGud does) and tell the person
+  which names work.
 - No `import()`, DOM or Node. Relative static imports of `.ts`/`.tsx` files work.
 
 ### Files to touch
@@ -435,23 +440,47 @@ export const deploysPanel: DockPanel = {
   true while any open dock's active view shows the panel's card expanded. The band shows the panel's
   summary at all times, so skip only work the summary does not need.
 - To refresh when the person opens the panel, hook the dock's own presses: its band tab and, in any
-  dock, its card's minimize toggle (`dock-<dockId>-toggle-<id>`). A view's tab (`dock-<dockId>-view-<n>`)
+  dock, its card's header toggle (`dock-<dockId>-toggle-<id>`). A view's tab (`dock-<dockId>-view-<n>`)
   can bring it into view too; a timer that checks `isShownIn` covers that:
   `ui.press { plugin: 'claudedockula', element: /^dock-(tab|main-toggle|\d+-toggle)-<id>$/ }`. Await
   `next(e)` first (that runs the dock), then `void refresh($)`, then return what `next` gave.
 
-#### Running a CLI: the argv guard
+#### Running a CLI or a web request: the read-only guard
 
-For a tool that can write (`gh`, `git`), run it only through a local wrapper that first asks a pure
-`isAllowedArgv(argv)` (`hooks/panels/github/argv.ts`) and refuses anything not on its list: allowed
-subcommands only, refused words and flags (`checkout`, `merge`, `--web`, `-X`), GraphQL only when it is a
-query, git only as `git --no-optional-locks <read-only subcommand>`. The GitHub panel's background review adds
-exactly its own commands, each matched whole: `git cat-file -e` and `git archive` into one review folder under its
-temp root, `tar -xf` there, `rm -rf` of that folder, and `claude -p` with the reviewer's flags (`github/review.ts`).
+For a tool that can write (`gh`, `glab`, `git`), run it only through a local wrapper that first asks a pure
+`isAllowedArgv(argv)` (`hooks/panels/gitgud/guard.ts`) and refuses anything not
+on its list: allowed subcommands only, refused words and flags (`checkout`, `merge`, `--web`, `-X`), GraphQL only
+when it is a query, `glab` only as `auth status --hostname <host>` or `api <path> --hostname <host>` on a listed read
+path, the keychain only as the exact lookup (`security find-generic-password …` or `secret-tool lookup …`), and git
+only as `git --no-optional-locks <read-only subcommand>`. GitGud's background review adds exactly its own commands,
+each matched whole: `git cat-file -e` and `git archive` into one review folder under its temp root, `tar -xf` there,
+`rm -rf` of that folder, and `claude -p` with the reviewer's flags (`gitgud/review.ts`).
+
+Web requests get the same treatment from a pure `isAllowedRequest(req, hosts)` in the same file: GET only, over
+HTTPS, no body, only to a configured API host and only on a path its provider lists as a read (with only the
+`authorization` and `accept` headers), or an unauthenticated probe with no headers to one of a few fixed paths.
+A credential is added to the request after it is built, and only for the API host.
+
 Declare the wrapper in each file that runs the tool (`$` cannot cross files) and test the guard with the argvs a
 test run collects. Parse stdout whatever the exit code: `gh pr checks` exits 8 when checks are pending and 1 when
 one failed, with valid JSON. A tool call by a background agent carries `e.agentId`: hook `tool.call { tool: /./ }`, then check
 `e.agentId` inside, since a regex matcher also matches an absent value.
+
+#### Several services behind one panel: provider adapters
+
+GitGud reads GitHub, GitLab and Bitbucket through one adapter per service, in `hooks/panels/gitgud/providers/`
+(`github.ts`, `gitlab.ts`, `bitbucket.ts`, with the contract in `types.ts` and `adapterOf(provider)` in `index.ts`):
+
+- Each adapter is pure. Every operation (the lists, a row's checks, its diff, the overlap files) is a generator
+  that yields the requests it needs (a CLI argv, a read-only git argv or a GET) and returns the parsed result.
+- `caps` describes what the service offers (issues, search scope, failed-job logs, labels, the check-out command,
+  its words for a pull request), and the draw and the prompts read it.
+- Each wiring file (`gitgud.tsx`, `gitgudWork.tsx`, `gitgudOverlap.tsx`) declares a small `ioOf($)` with the engine
+  calls (`$.process.run`, `$.http.fetch`, `$.env.get`, the keychain lookup), because `$` cannot cross an import.
+  `gitgud/runner.ts` has everything else: it steps the generator, runs each request through the guard, tries the
+  executables, and keeps the token cache and the outcome mapping.
+- A secret such as the Bitbucket token is read at run time through that `ioOf`, kept in memory only by `runner.ts`,
+  and added to the request there. The adapter never sees it, and it never goes into state, the store, a notice or a log.
 
 ### Telling the person something: notices
 
@@ -482,7 +511,7 @@ async function notify($: EngineInterface, tone: NoticeTone, title: string, detai
 ### Drawing
 
 - Draw is pure: it gets everything from `state`. Never call `$` or write state while drawing.
-- Size everything to `columns`, the card's inner width. Use `wrap="truncate-end"` on lines that can
+- Size everything to `columns`, the section's width. Use `wrap="truncate-end"` on lines that can
   run long. Emoji and CJK take two cells: measure with `cellWidth`, never `.length`.
 - Use only `Box`, `Text`, `Button`, `Markdown`, `Link` and `Code`. The dock hands over the table of
   every surface, and mobile has no `Input` or `Select`. A picker draws a `Select` only behind

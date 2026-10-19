@@ -7,8 +7,8 @@ import { EMPTY_ACTIVITY, drawActivity, summarizeActivity } from '../panels/activ
 import { drawBranch, summarizeBranch } from '../panels/branch'
 import { checksIcon, drawChecks, summarizeChecks } from '../panels/checks'
 import { type DockPanel } from '../panels/contract'
-import { drawGithub, githubTabTone, summarizeGithub } from '../panels/github'
-import { prBadgesByKey } from '../panels/github/jiraLink'
+import { drawGitgud, gitgudTabTone, summarizeGitgud } from '../panels/gitgud'
+import { prBadgesByKey } from '../panels/gitgud/jiraLink'
 import { drawJira, summarizeJira } from '../panels/jira'
 import { drawSlacker, summarizeSlacker } from '../panels/slacker'
 import { SET_UP_SUMMARY } from '../settings'
@@ -19,6 +19,7 @@ import {
   SCROLLBAR_COLUMNS,
   MIN_DOCK_ROWS,
   NEW_PANEL_OPEN,
+  PANEL_RENAMES,
   activeView,
   addDock,
   addView,
@@ -62,6 +63,7 @@ import {
   removeDock,
   removeView,
   renameDock,
+  renamePanelIds,
   renameView,
   restoreLayout,
   scrollBarProps,
@@ -95,9 +97,9 @@ import {
   toggleNotice
 } from './notices'
 import { readPackPanels } from './packs'
-import { SEEN_STORE_KEY, panelNews, readSeen } from './panelNews'
+import { SEEN_STORE_KEY, panelNews, readSeen, renameSeen } from './panelNews'
 import { EMPTY_DRAFT, EMPTY_FORM, buildRemovePanelPrompt, listMcpServerNames } from './prompts'
-import { CARD_FRAME_CELLS, drawMore, drawNote, type DockElements } from './ui'
+import { drawMore, drawNote, type DockElements } from './ui'
 import { drawUserPanel, summarizeUserPanel, userPanelsOf } from './user'
 import { ADD_ICON, drawBottomDock, drawRightDock, openMenuRows, type BottomFrame, type DockScene } from './views'
 
@@ -122,7 +124,7 @@ const checksAtom = atom({ plugin: 'claudedockula', key: 'checks' } as const, {})
 const activityAtom = atom({ plugin: 'claudedockula', key: 'activity' } as const, EMPTY_ACTIVITY)
 const jiraAtom = atom({ plugin: 'claudedockula', key: 'jira' } as const, {})
 const slackerAtom = atom({ plugin: 'claudedockula', key: 'slacker' } as const, {})
-const githubAtom = atom({ plugin: 'claudedockula', key: 'github' } as const, {})
+const gitgudAtom = atom({ plugin: 'claudedockula', key: 'gitgud' } as const, {})
 const draftAtom = atom({ plugin: 'claudedockula', key: 'addDraft' } as const, EMPTY_DRAFT)
 const formAtom = atom({ plugin: 'claudedockula', key: 'addForm' } as const, EMPTY_FORM)
 const noticesAtom = atom({ plugin: 'claudedockula', key: 'notices' } as const, NO_NOTICES)
@@ -326,7 +328,7 @@ async function requestRemoval($: EngineInterface, panel: DockPanel): Promise<voi
 
 /** Tells the person once about the built-in panels that are new or changed since they last heard, then keeps the record. */
 async function announcePanelNews($: EngineInterface, knownIds: readonly string[]): Promise<void> {
-  const seen = readSeen(await $.store.get(SEEN_STORE_KEY).catch(() => undefined))
+  const seen = renameSeen(readSeen(await $.store.get(SEEN_STORE_KEY).catch(() => undefined)), PANEL_RENAMES)
   const { notices, record } = panelNews(seen, PANELS, knownIds)
   const at = await $.clock.now()
   for (const notice of notices) await update($, noticesAtom, list => pushNotice(list, { ...notice, at }))
@@ -460,10 +462,10 @@ async function readBandTab($: EngineInterface, panel: DockPanel): Promise<BandTa
         return bandTab(panel, summarizeJira(await read($, jiraAtom)))
       case 'slacker':
         return bandTab(panel, summarizeSlacker(await read($, slackerAtom)))
-      case 'github': {
-        const github = await read($, githubAtom)
+      case 'gitgud': {
+        const gitgud = await read($, gitgudAtom)
 
-        return bandTab(panel, summarizeGithub(github), panel.icon, githubTabTone(github))
+        return bandTab(panel, summarizeGitgud(gitgud), panel.icon, gitgudTabTone(gitgud))
       }
       default:
         return bandTab(panel, await summarizeUserPanel($, panel.id))
@@ -566,11 +568,11 @@ async function drawPanelBody($: EngineInterface, e: DockSite, panel: DockPanel, 
       case 'activity':
         return drawActivity(ui, await read($, activityAtom), columns)
       case 'jira':
-        return drawJira(ui, await read($, jiraAtom), columns, e.surface, dockId, prBadgesByKey(await read($, githubAtom)))
+        return drawJira(ui, await read($, jiraAtom), columns, e.surface, dockId, prBadgesByKey(await read($, gitgudAtom)))
       case 'slacker':
         return drawSlacker(ui, await read($, slackerAtom), columns, e.surface, dockId)
-      case 'github':
-        return drawGithub(ui, await read($, githubAtom), columns, e.surface, dockId)
+      case 'gitgud':
+        return drawGitgud(ui, await read($, gitgudAtom), columns, e.surface, dockId)
       default:
         return panel.isBuiltIn ? null : await drawUserPanel($, e, panel.id, columns, dockId)
     }
@@ -602,7 +604,7 @@ async function readScene(
   const shown = dock.view === 'panels' ? panels.filter(panel => !view.minimized.includes(panel.id)) : []
   const bodies = await Promise.all(
     shown.map(async (panel): Promise<[string, JSX.Element | null]> => {
-      const bodyColumns = Math.max(1, (widths.get(panel.id) ?? cardColumns) - CARD_FRAME_CELLS)
+      const bodyColumns = Math.max(1, widths.get(panel.id) ?? cardColumns)
 
       return [panel.id, await drawPanelBody($, e, panel, bodyColumns, dock.id)]
     }),
@@ -620,6 +622,7 @@ async function readScene(
     ...(bottom && bottom.id !== dock.id ? { bottomName: bottom.name } : {}),
     isLastDock: layout.docks.length === 1,
     columns,
+    cardColumns,
   }
 }
 
@@ -728,9 +731,12 @@ export function registerDockHooks(on: On): void {
     await update($, userPanelsAtom, () => listed)
     const ids = await panelIdsOf($)
     // Before the layout below records every panel as known: an opt-in one not known yet is what gets announced.
-    await announcePanelNews($, readLayout(held.version > 0 ? await read($, layoutAtom) : stored).known)
+    const startLayout = renamePanelIds(readLayout(held.version > 0 ? await read($, layoutAtom) : stored))
+    await announcePanelNews($, startLayout.known)
     const layout = await update($, layoutAtom, current =>
-      held.version > 0 ? reconcileLayout(current, ids, openPanes, BUILT_IN_IDS, OPT_IN_IDS) : restoreLayout(stored, ids, BUILT_IN_IDS, OPT_IN_IDS),
+      held.version > 0
+        ? reconcileLayout(renamePanelIds(readLayout(current)), ids, openPanes, BUILT_IN_IDS, OPT_IN_IDS)
+        : restoreLayout(startLayout, ids, BUILT_IN_IDS, OPT_IN_IDS),
     )
     if (held.version === 0 && Object.keys(await read($, scrollAtom)).length > 0) await update($, scrollAtom, () => ({}))
     // A pane left open across a reload keeps the width and title of the code that opened it; one whose dock

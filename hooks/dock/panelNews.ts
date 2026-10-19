@@ -26,6 +26,17 @@ export function readSeen(raw: unknown): SeenPanels | undefined {
   return Object.fromEntries(entries)
 }
 
+/** The record with renamed panels under their new ids, keeping the newest revision heard; undefined stays undefined. */
+export function renameSeen(seen: SeenPanels | undefined, renames: readonly (readonly [string, string])[]): SeenPanels | undefined {
+  if (seen === undefined) return undefined
+
+  return renames.reduce((current, [from, to]) => {
+    const { [from]: old, ...rest } = current
+
+    return old === undefined ? current : { ...rest, [to]: Math.max(old, rest[to] ?? 0) }
+  }, seen)
+}
+
 function noticeOf(panel: DockPanel, isNew: boolean): PanelNotice {
   return { ...announce(panel, isNew), stays: true }
 }

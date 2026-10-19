@@ -2,7 +2,7 @@ import type { McpToolResult } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import type { JiraBoardColumn, JiraTicket } from '../types'
-import { type PrBadge, prBadgeLabel } from '../hooks/panels/github/jiraLink'
+import { type PrBadge, prBadgeLabel } from '../hooks/panels/gitgud/jiraLink'
 import { summarizeJira } from '../hooks/panels/jira'
 import { htmlToMarkdown } from '../hooks/panels/jira/html'
 import {

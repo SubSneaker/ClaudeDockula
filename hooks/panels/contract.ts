@@ -20,7 +20,7 @@ export interface DockPanel {
   /** One short line saying what the latest revision changed; required when `revision` is above 1. */
   whatsNew?: string
   /**
-   * The card's header shows ⚙ beside its minimize button (`dock-<dockId>-settings-<id>`). The dock expands the card;
+   * The card's header shows ⚙ beside its header toggle (`dock-<dockId>-settings-<id>`). The dock expands the card;
    * the panel's own `ui.press` hook on that key, after `next(e)`, opens or closes its settings in its body.
    */
   hasSettings?: boolean

@@ -93,7 +93,7 @@ export interface DockNotice {
   action?: DockNoticeAction
 }
 
-/** A notice's one action: `{ key: 'github-review-act-open-o~r~12', label: 'Open' }`. */
+/** A notice's one action: `{ key: 'gitgud-review-act-open-o~r~12', label: 'Open' }`. */
 export interface DockNoticeAction {
   key: string
   label: string
@@ -510,11 +510,13 @@ export interface SlackerState {
   shown?: number
 }
 
-// --- github panel ---
+// --- gitgud panel ---
 /** A PR's combined CI: GitHub's rollup, folded. */
 export type GhCiState = 'pass' | 'fail' | 'pending' | 'none'
 /** A PR's review decision, folded; `none` when GitHub has no decision. */
 export type GhReviewState = 'approved' | 'changes' | 'required' | 'none'
+/** The git hosting service an item or repo lives on. */
+export type GhProvider = 'github' | 'gitlab' | 'bitbucket'
 export type GhView = 'review' | 'mine' | 'issues' | 'search'
 /** `repos`: the session's repo plus the added ones; `all`: every repo the account reaches. */
 export type GhScope = 'repos' | 'all'
@@ -522,18 +524,25 @@ export type GhScope = 'repos' | 'all'
 export type GhHealth = 'ok' | 'missing' | 'logged-out'
 
 export interface GhRepo {
-  /** `owner/name`. */
+  /** The repo's path on its host (`owner/name`, or `g/sub/proj` on GitLab): shown as the name. */
   nameWithOwner: string
   url: string
   defaultBranch?: string
+  provider?: GhProvider
+  host?: string
+  path?: string
 }
 
 /** One PR or issue as a list row shows it. */
 export interface GhItem {
-  /** `owner/name#123`: unique across repos. */
+  /** `host/path#123` (`github.com/acme/web#123`): unique across repos and hosts. The old `owner/name#123` still reads, as github.com. */
   id: string
   kind: 'pr' | 'issue'
+  /** The service the item lives on; absent reads as github. */
+  provider?: GhProvider
+  /** The repo key, `host/path`: `gitlab.com/g/sub/proj`. */
   repo: string
+  /** The PR number, or the merge request's iid. */
   number: number
   title: string
   url: string
@@ -548,6 +557,8 @@ export interface GhItem {
   headRef?: string
   baseRef?: string
   headSha?: string
+  /** `headSha` is an abbreviated hash (Bitbucket's 12 characters) not yet resolved to a full one. */
+  isHeadShaShort?: true
   ci?: GhCiState
   review?: GhReviewState
   /** The latest approving review's node id: the approved alert keys on it, so a push does not raise it again. */
@@ -570,6 +581,8 @@ export interface GhCheck {
   /** From an Actions job link; absent for an outside check. */
   runId?: number
   jobId?: number
+  /** A job or step id as text. */
+  jobKey?: string
   description?: string
   /** A failed job: the log lines that say why, cleaned. */
   why?: string[]
@@ -683,10 +696,60 @@ export interface GhGenJob {
   error?: string
 }
 
-/** Saved globally in the store under `github:settings`. */
+/** What is known about one git host: its service, where its API is, and where a token is read from. */
+export interface GgHostConfig {
+  provider: GhProvider
+  /** When the remote's host is an alias or the API lives elsewhere. */
+  apiHost?: string
+  /** Bitbucket only. Never the token itself. */
+  tokenFrom?: { kind: 'keychain'; service: 'gitgud-bitbucket'; account: string } | { kind: 'env'; name: string }
+  /** Bitbucket's Basic auth user: not a secret. */
+  email?: string
+  decidedBy: 'known' | 'cli' | 'probe' | 'person'
+  at: number
+}
+
+/** One host's live state. */
+export interface GgHostState {
+  provider: GhProvider
+  health?: GhHealth
+  healthError?: string
+  login?: string
+  userId?: string
+}
+
+/** What detection concluded about the session folder's remote. */
+export type GgDetect =
+  | { kind: 'ready'; host: string; provider: GhProvider }
+  | { kind: 'needs-setup'; host: string; provider: GhProvider; why: 'cli-missing' | 'signed-out' | 'no-token' | 'token-refused' }
+  | { kind: 'unknown-host'; host: string; remote: string; guess?: GhProvider }
+  | { kind: 'no-remote' }
+  | { kind: 'unsupported'; host: string; provider: 'bitbucket-dc' | 'gitea' | 'azure' }
+
+/** The pick-a-service and set-up card, while it is open. */
+export interface GgSetupView {
+  host?: string
+  provider?: GhProvider
+  /** Where the flow is. */
+  step: 'pick' | 'cli' | 'token' | 'check'
+  /** One line of the card's own news (a refused token, a missing scope). */
+  note?: string
+  /** The service's web host when it differs from the remote's. */
+  apiHost?: string
+  /** Which keychain tool the card names. */
+  platform?: 'darwin' | 'linux'
+  email?: string
+  tokenFrom?: GgHostConfig['tokenFrom']
+}
+
+/** Saved globally in the store under `gitgud:settings`. */
 export interface GhSettings {
-  /** `owner/name` of repos added with ➕, shown in every session. */
+  /** Repo keys (`github.com/owner/name`) of repos added with ➕, shown in every session. */
   extraRepos?: string[]
+  /** By remote host, lowercase. */
+  hosts?: Record<string, GgHostConfig>
+  /** The host All-scope lists use when the folder has no remote. */
+  defaultHost?: string
   scope?: GhScope
   /** The poll while the card is shown, in seconds; absent, 90. */
   pollSeconds?: number
@@ -717,6 +780,8 @@ export interface GhViewState {
   /** Rows shown per list; absent, 8. */
   shown?: number
   isSettingsOpen?: boolean
+  /** The pick-a-service card was answered with Not now. */
+  isSetupDismissed?: boolean
   isOverlapOpen?: boolean
   /** The background review whose action menu is open, by item id. */
   reviewMenu?: string
@@ -724,7 +789,14 @@ export interface GhViewState {
   overlapMenu?: number
 }
 
-export interface GithubState {
+export interface GitgudState {
+  /** The host the session's lists and checks read first, and its service. */
+  host?: string
+  provider?: GhProvider
+  /** By host. */
+  hosts?: Record<string, GgHostState>
+  detect?: GgDetect
+  setup?: GgSetupView
   health?: GhHealth
   /** Why `gh` failed, one line. */
   healthError?: string
@@ -802,6 +874,8 @@ export interface GhDiffInspect {
   /** When it was opened: a load that lands after another file opened (or the pane closed) is dropped. */
   openedAt: number
   number: number
+  /** The service the PR is on; absent reads as GitHub. */
+  provider?: GhProvider
   repo: string
   title: string
   author: string
@@ -825,7 +899,7 @@ export interface GhDiffInspect {
 }
 
 /** The doc pane (`claudedockula-doc`): one generated file shown whole, or the overlap inspector (`diff`). */
-export interface GithubDocState {
+export interface GitgudDocState {
   diff?: GhDiffInspect
   path?: string
   title?: string
@@ -926,8 +1000,8 @@ declare module 'claude-code' {
       activity: ActivityState
       jira: JiraState
       slacker: SlackerState
-      github: GithubState
-      githubDoc: GithubDocState
+      gitgud: GitgudState
+      gitgudDoc: GitgudDocState
       /** The panels the packs listed at the last `dockula.panels` read. */
       userPanels: DockulaPanelInfo[]
       /** Bumped when a pack's panel changed: every dock that draws a user panel reads it. */

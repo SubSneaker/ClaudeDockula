@@ -25,7 +25,7 @@ import {
   type ScrollBarProps,
   type ViewAction,
 } from './layout'
-import { CARD_FRAME_CELLS, cellWidth, drawCard, drawNote, fitEnd, padCells, type DockElements } from './ui'
+import { cellWidth, drawCard, drawNote, fitEnd, padCells, type DockElements } from './ui'
 
 // A dock's drawing, pure: every Button answers through the dock's `ui.press` hook in DockPane.tsx, which
 // reads the dock, the view or the panel and the action back from the key.
@@ -33,13 +33,17 @@ import { CARD_FRAME_CELLS, cellWidth, drawCard, drawNote, fitEnd, padCells, type
 export const ADD_ICON = '➕'
 /** Below this width a right dock's controls drop their words and keep the glyphs. */
 const WORDED_CONTROLS_COLUMNS = 48
+/** Cells of a header's `↑ ↓`. */
+const MOVE_CONTROL_CELLS = 3
+/** A gap's divider: a join under the sections' rules, then bars far past any section's height; its Box clips them. */
+const DIVIDER = `┬${'\n│'.repeat(200)}`
 const TAB_GAP = 2
 const MIN_TAB_CELLS = 4
 const ADD_VIEW_LABEL = `${ADD_ICON} View`
 /** Rows the open ➕ menu takes: its two lines and the blank row under them. */
 const DOCK_MENU_ROWS = 3
-/** Rows the open Layout card takes besides its width rows: borders, title, Direction (one row, its label cut) and the blank rows. */
-const LAYOUT_CARD_ROWS = 6
+/** Rows the open Layout section takes besides its width rows: rule, title, Direction (one row, its label cut) and the blank row under it. */
+const LAYOUT_CARD_ROWS = 4
 const WIDTH_CHOICES: ReadonlyArray<readonly [CardWidth, string, string]> = [
   ['auto', '[Auto]', 'A'],
   ['third', '[⅓]', '⅓'],
@@ -91,6 +95,8 @@ export interface DockScene {
   bottomName?: string
   isLastDock: boolean
   columns: number
+  /** Columns the cards are laid out in: `columns` less the measure probe and scrollbar beside a bottom dock's cards. */
+  cardColumns: number
   bottom?: BottomFrame
 }
 
@@ -260,7 +266,7 @@ function isLayoutCompact(scene: DockScene, labelCells: number): boolean {
   const direction = rowCells([DIRECTION_LABEL, ...DIRECTION_CHOICES.map(([, full]) => full)])
   const widths = rowCells(['x'.repeat(labelCells), ...WIDTH_CHOICES.map(([, full]) => full)])
 
-  return scene.columns - CARD_FRAME_CELLS < Math.max(direction, widths)
+  return scene.cardColumns < Math.max(direction, widths)
 }
 
 /** The width rows the Layout card draws: one per panel in a Row view, else one note. */
@@ -279,7 +285,8 @@ export function openMenuRows(scene: DockScene): number {
 /** `▤ Layout`: Column or Row (wraps) for the active view, and in a row view each card's width. */
 function drawLayoutMenu(ui: DockElements, scene: DockScene): JSX.Element {
   const { Box, Text } = ui
-  const { dock, panels, columns } = scene
+  const { dock, panels } = scene
+  const columns = scene.cardColumns
   const view = activeView(dock)
   const isRow = view.direction === 'row'
   const labelCells = Math.min(Math.max(0, ...panels.map(panel => cellWidth(shortLabel(panel)))), Math.floor(columns / 3))
@@ -303,6 +310,7 @@ function drawLayoutMenu(ui: DockElements, scene: DockScene): JSX.Element {
 
   return drawCard(ui, {
     key: cardKey(dock.id, 'layout'),
+    cells: columns,
     title: `▤ Layout · ${activeTabName(scene)}`,
     body: (
       <Box flexDirection="column" rowGap={1}>
@@ -324,23 +332,30 @@ function drawLayoutMenu(ui: DockElements, scene: DockScene): JSX.Element {
 
 /** The active view's cards, in lines: one full-width card a line in a column view, side by side in a row view. */
 function drawCards(ui: DockElements, scene: DockScene): JSX.Element {
-  const { Box, Button } = ui
+  const { Box, Button, Text } = ui
   const { dock, panels, bodies, lines } = scene
   if (panels.length === 0) {
     return drawNote(ui, 'No panels in this view. Press ⚙ to choose some.')
   }
   const { minimized } = activeView(dock)
+  const widths = new Map(lines.flat().map(slot => [slot.id, slot.width]))
   const cards = new Map(
     panels.map((panel, index) => {
       const isMinimized = minimized.includes(panel.id)
+      const controlCells = MOVE_CONTROL_CELLS + (panel.hasSettings === true ? cellWidth('⚙') + 1 : 0)
+      const room = Math.max(1, (widths.get(panel.id) ?? scene.cardColumns) - controlCells - 1)
+      const heading = padCells(`${isMinimized ? '▸' : '▾'} ${panel.icon} ${panel.title}`, room)
       const toggle = (
-        <Button key={panelKey(dock.id, 'toggle', panel.id)} plain label={isMinimized ? '▸' : '▾'} onPress={() => undefined} />
+        <Button key={panelKey(dock.id, 'toggle', panel.id)} plain label={heading} onPress={() => undefined}>
+          <Text bold>{heading}</Text>
+        </Button>
       )
       const settings = panel.hasSettings === true ? [<Button key={panelKey(dock.id, 'settings', panel.id)} plain dimColor label="⚙" onPress={() => undefined} />] : []
       const card = drawCard(ui, {
         key: cardKey(dock.id, panel.id),
-        title: `${panel.icon} ${panel.title}`,
-        controls: [...settings, toggle, ...drawMoves(ui, dock.id, activeView(dock).id, panel.id, index, panels.length)],
+        cells: widths.get(panel.id) ?? scene.cardColumns,
+        title: toggle,
+        controls: [...settings, ...drawMoves(ui, dock.id, activeView(dock).id, panel.id, index, panels.length)],
         body: isMinimized ? null : (bodies.get(panel.id) ?? null),
       })
 
@@ -349,7 +364,7 @@ function drawCards(ui: DockElements, scene: DockScene): JSX.Element {
   )
 
   return (
-    <Box flexDirection="column" rowGap={dock.position === 'right' ? 1 : 0} flexShrink={0}>
+    <Box flexDirection="column" flexShrink={0}>
       {lines.map(line => (
         <Box flexDirection="row" columnGap={CARD_GAP} alignItems="flex-start">
           {line.map(slot => (
@@ -357,10 +372,35 @@ function drawCards(ui: DockElements, scene: DockScene): JSX.Element {
               {cards.get(slot.id) ?? null}
             </Box>
           ))}
+          {dividerOffsets(line).map(left => (
+            <Box position="absolute" left={left} top={0} bottom={0} width={CARD_GAP} overflow="hidden">
+              <Text dimColor wrap="wrap">
+                {DIVIDER}
+              </Text>
+            </Box>
+          ))}
         </Box>
       ))}
     </Box>
   )
+}
+
+/**
+ * The column of each gap between two sections side by side on a line.
+ * @example
+ * // before: [{ id: 'a', width: 49 }, { id: 'b', width: 48 }]
+ * // after:  [49]
+ */
+export function dividerOffsets(line: readonly CardSlot[]): number[] {
+  const offsets: number[] = []
+  let edge = 0
+  line.slice(0, -1).forEach(slot => {
+    edge += slot.width
+    offsets.push(edge)
+    edge += CARD_GAP
+  })
+
+  return offsets
 }
 
 /** The registry in the view's order: its panels first, then the ones it does not show. */
@@ -446,6 +486,7 @@ function drawManage(ui: Elements[RenderSurface], scene: DockScene): JSX.Element 
 
   return drawCard(ui, {
     key: cardKey(dock.id, 'manage'),
+    cells: scene.columns,
     title: `⚙ Manage · ${activeTabName(scene)}`,
     body: (
       <Box flexDirection="column" rowGap={1}>

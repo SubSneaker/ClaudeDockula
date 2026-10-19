@@ -439,7 +439,7 @@ test('a reload runs session.start again and keeps the layout the session holds',
 
   expect(await pane.find({ key: 'dock-main-enable-1-jira' })).toBeDefined()
   await pane.press({ key: 'dock-main-manage' })
-  expect((await pane.find({ key: 'dock-main-toggle-jira' }))?.props.label).toBe('▸')
+  expect(String((await pane.find({ key: 'dock-main-toggle-jira' }))?.props.label).trimEnd()).toBe('▸ 🎫 Jira · assigned to me')
   await pane.unmount()
 })
 
@@ -469,7 +469,7 @@ test('an old held layout migrates on session.start, stale panes close, and /dock
   await $.session.start(start)
   const main = await $.ui.mount({ plugin: 'claudedockula', surface: 'terminal', component: 'Pane', requestId: 'claudedockula', props: paneProps(56) })
   expect(await main.find({ key: 'dock-main-card-jira' })).toBeDefined()
-  expect((await main.find({ key: 'dock-main-toggle-branch' }))?.props.label).toBe('▸')
+  expect(String((await main.find({ key: 'dock-main-toggle-branch' }))?.props.label).trimEnd()).toBe('▸ 🌿 Branch')
   expect(panes.has('claudedockula-7')).toBe(false)
   expect(panes.has('claudedockula-new')).toBe(true)
 
